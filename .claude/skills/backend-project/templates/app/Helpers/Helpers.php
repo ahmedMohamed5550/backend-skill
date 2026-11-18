@@ -2,7 +2,6 @@
 
 namespace App\Helpers;
 
-use App\Constants\Constants;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 
@@ -70,7 +69,7 @@ class Helpers
 
     public static function getPaginationMeta($items, $count)
     {
-        if (request()->all == 1) {
+        if (request('all') == 1) {
             return;
         }
 

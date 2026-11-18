@@ -14,7 +14,7 @@ trait ApiResponseTrait
             'data' => $data,
         ];
 
-        if ($pagination && request()->all != 1) {
+        if ($pagination && request('all') != 1) {
             $response['pagination'] = $pagination;
         }
 

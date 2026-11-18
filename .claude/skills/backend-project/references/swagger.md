@@ -49,3 +49,77 @@
 - Do not change the existing permission naming, generation, registration, or authorization logic to achieve this.
 - Do not create a separate source of permission values for the UI.
 - Ensure the permission displayed in the description always matches the OpenAPI extension, Controller middleware, and Spatie permission seeders.
+
+## Approved Annotation Example
+
+Place the global annotations (`@OA\Info`, `@OA\Server`, `@OA\SecurityScheme` for `bearerAuth`) on the Auth Controller class docblock so they are generated once.
+
+Protected endpoint example (`ProductsController::store`):
+
+```php
+/**
+ * Create a product.
+ *
+ * @OA\Post(
+ *     path="/api/v1/products",
+ *     operationId="productsStore",
+ *     tags={"Products"},
+ *     summary="Create a product",
+ *     description="Create a new product.<br><br>🔒 <b>Required permission:</b> <code>products-create</code>",
+ *     security={{"bearerAuth": {}}},
+ *     x={"required-permission": "products-create"},
+ *
+ *     @OA\RequestBody(
+ *         required=true,
+ *
+ *         @OA\JsonContent(
+ *             required={"name", "price", "stock_quantity"},
+ *
+ *             @OA\Property(property="name", type="string", example="Espresso"),
+ *             @OA\Property(property="description", type="string", nullable=true, example="Double shot espresso"),
+ *             @OA\Property(property="price", type="number", format="float", example=3.50),
+ *             @OA\Property(property="stock_quantity", type="integer", example=100)
+ *         )
+ *     ),
+ *
+ *     @OA\Response(response=201, description="Products created successfully"),
+ *     @OA\Response(response=401, description="Unauthenticated"),
+ *     @OA\Response(response=403, description="Missing products-create permission"),
+ *     @OA\Response(response=422, description="Validation failed"),
+ *     @OA\Response(response=500, description="Server error")
+ * )
+ */
+public function store(StoreProductRequest $request): JsonResponse
+```
+
+Public endpoint example (login):
+
+```php
+/**
+ * @OA\Post(
+ *     path="/api/v1/auth/login",
+ *     operationId="authLogin",
+ *     tags={"Auth"},
+ *     summary="Login",
+ *     description="Authenticate a user and return a Bearer token.<br><br>🌐 <b>Public endpoint</b>",
+ *     x={"required-permission": null},
+ *
+ *     @OA\RequestBody(
+ *         required=true,
+ *
+ *         @OA\JsonContent(
+ *             required={"email", "password"},
+ *
+ *             @OA\Property(property="email", type="string", format="email", example="admin@example.local"),
+ *             @OA\Property(property="password", type="string", format="password", example="password")
+ *         )
+ *     ),
+ *
+ *     @OA\Response(response=200, description="Logged in successfully"),
+ *     @OA\Response(response=401, description="Invalid credentials"),
+ *     @OA\Response(response=422, description="Validation failed")
+ * )
+ */
+```
+
+Follow the same structure for every endpoint: exact route path, `operationId`, `tags`, `summary`, permission `description` and `x` extension, `security` for protected endpoints, request body or parameters, and every applicable response code.

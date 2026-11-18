@@ -110,6 +110,7 @@ $categories = $this->CategoryService->index();
   - `categories-update`
   - `categories-delete`
 - Every Controller must register the appropriate permission middleware in its constructor, mapping permissions to their corresponding methods using the `only` option.
+- Spatie's `role`, `permission`, and `role_or_permission` middleware aliases are registered by the approved `bootstrap/app.php` template. Register permission middleware using the alias form: `'permission:{permission-name}'` (equivalently `PermissionMiddleware::class.':{permission-name}'`).
 - A Controller action must not be left without authorization middleware unless it is explicitly defined as a public endpoint.
 - Public authentication endpoints, such as login and registration, must remain accessible without authenticated permissions.
 - Generate and register permissions for all created module actions.
@@ -140,3 +141,14 @@ $categories = $this->CategoryService->index();
 - Prevent accidental removal of the Admin's full access.
 - The Admin role must retain all available permissions.
 - Changes to roles and permissions must take effect immediately, including clearing the Spatie permission cache when necessary.
+
+## Package Models Requiring Standard Columns
+
+Some packages own their own database tables and Models (for example, Spatie Laravel Permission's `roles`, `permissions`, `model_has_permissions`, `model_has_roles`, and `role_has_permissions` tables). Those tables must still follow the skill's standard columns.
+
+- When a package table must carry a standard column such as the unique `uuid`, extend the package Model into `App\Models\V1\{Model}` and add the standard `boot()` UUID hook there. The extended Model must inherit all package behavior.
+- Point the package configuration at the extended Models — for example, `config/permission.php` `models.role` and `models.permission` must reference `App\Models\V1\Role` and `App\Models\V1\Permission`.
+- Publish the package migrations and add the standard columns (for example, `$table->uuid('uuid')->unique()`) to the published migration.
+- Never modify vendor package internals to achieve this.
+- All project code — including seeders, controllers, and services — MUST import the extended `App\Models\V1` Models, never the vendor Model class. Importing the vendor Model silently skips the UUID hook and fails on insert with "Field 'uuid' doesn't have a default value".
+- The same rule applies to the framework's default `users` table: add the unique `uuid` column to the users migration and keep the project's User Model in `App\Models\V1\User` with the standard UUID hook.

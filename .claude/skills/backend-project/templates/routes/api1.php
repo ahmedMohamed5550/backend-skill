@@ -12,3 +12,6 @@
 | require __DIR__ . '/users.php';
 |
 */
+
+// Public API documentation endpoint — included in every project by default.
+require __DIR__ . '/documentation.php';

@@ -16,9 +16,8 @@ Use Laravel's `$table->id()`, `$table->uuid('uuid')->unique()`, and `$table->tim
 - Pivot tables: follow Laravel's conventional pivot table naming.
 
 ## UUID Generation
-- Every Model must generate its UUID automatically.
-- Generate UUID inside the Model's `boot()` method using a static `creating` callback.
-- Use `(string) Str::uuid()`.
+- UUID scope and rules are defined in SKILL.md §7.
+- Generate the UUID via a static `creating` callback in the Model's `boot()` method; the canonical implementation lives in `references/models.md`.
 - Do not use Laravel's `HasUuids` trait.
 
 ## Columns and Constraints
@@ -54,21 +53,15 @@ Use Laravel's `$table->id()`, `$table->uuid('uuid')->unique()`, and `$table->tim
 
 ## Database Transactions
 
-- Every operation that changes database data must execute inside `DB::transaction()`.
-- Transactions must be implemented in the Service layer, not in Controllers.
-- This includes Create, Update, Delete, Bulk Delete, Bulk Insert, and relationship changes.
-- Use Laravel's `DB::transaction()` closure to handle automatic commit and rollback.
-- If an exception occurs inside the transaction, Laravel must automatically roll back the transaction and rethrow the exception.
-- Controllers are responsible for catching the propagated exception, logging it, and returning the approved generic API error response.
-- Read-only operations do not require transactions.
+- Transaction scope and rules are defined in SKILL.md §9.
+- Transactions must be implemented in the Service layer, never in Controllers.
+- Controllers catch propagated exceptions, log them, and return the approved generic API error response.
 - Never manually commit a transaction that is managed by `DB::transaction()`.
 
 ## Bulk Delete
-- Accept a collection of UUIDs.
-- Verify that all requested UUIDs exist before deleting.
-- If any UUID does not exist, fail the entire operation.
-- Never partially delete records.
-- Execute the complete bulk delete operation inside one database transaction.
+
+- Follows SKILL.md §10: accept a collection of UUIDs, verify all of them exist, and delete inside one database transaction.
+- All-or-nothing: never partially delete records.
 - Do not implement Bulk Update unless explicitly requested.
 
 ## Model Attributes
@@ -92,6 +85,7 @@ Use Laravel's `$table->id()`, `$table->uuid('uuid')->unique()`, and `$table->tim
 - Automatically create the database if it does not exist, without asking the user for approval.
 - Automatically run all required migrations after database creation.
 - Do not ask the user to choose a database name, approve database creation, or approve migrations.
+- If the derived database name already exists and contains tables, stop and ask the user for an alternate database name before running any migrations. Never migrate into, drop, or overwrite a pre-existing database that the scaffold did not create.
 - If MySQL is unavailable or the configured credentials lack the required permissions, report the actual error clearly and do not pretend setup succeeded.
 
 

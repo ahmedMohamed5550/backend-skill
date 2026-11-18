@@ -1,7 +1,7 @@
 # Backend Dependencies Standards
 
 ## Technology Stack
-- PHP: `^8.2`
+- PHP: `^8.4`
 - Laravel Framework: `^13.0`
 - API Authentication: Laravel Passport
 
@@ -83,11 +83,11 @@ Preserve these mappings:
 
 ## Composer File Autoload
 
-Preserve these entries:
+Preserve this single entry:
 
 - `app/Helpers/Helpers.php`
-- `app/Helpers/UtilityHelper.php`
-- `app/Helpers/FileHelper.php`
+
+Do not add `UtilityHelper.php`, `FileHelper.php`, or any other helper file to `autoload.files`.
 
 ## Composer Scripts
 - Preserve the standard Laravel project setup and package-discovery scripts.

@@ -139,6 +139,18 @@ Apply sorting using `orderBy($sortBy, $sortDirection)` and pagination using `pag
 - Do not use camelCase, PascalCase, underscores, or spaces in route paths.
 - Keep route naming consistent across all modules and API clients.
 
+## Module Actions
+
+- Every module must include the standard CRUD operations by default.
+- CRUD operations are the default foundation, not a limitation on the module's functionality.
+- Implement all additional actions explicitly requested by the project requirements or business logic.
+- Do not restrict modules to CRUD operations only.
+- Additional actions must be implemented within the existing module Controller and Service.
+- Create additional Form Requests only when input validation is required.
+- Register additional routes using the approved route naming convention.
+- Every additional protected action must have its own permission following the approved Permission Naming Convention.
+- Do not create additional Controllers, Services, or Resources unless explicitly approved.
+- Do not invent additional business actions that were not requested or required by the project.
 
 ## Permission Naming Convention
 

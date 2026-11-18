@@ -28,18 +28,27 @@ When asked to create a new project:
 3. Read the configuration script and understand the configured workspace paths.
 4. Automatically derive the project name from the user's business requirements. Never ask the user to provide or confirm the project name.
 5. Understand the business requirements.
-6. Prepare the standardized Laravel foundation and initialize the Laravel project.
+6. Prepare the standardized Laravel foundation and initialize the Laravel project using `scripts/scaffold.sh` (see Execution Guidance below).
 7. Use the approved templates and configuration files.
 8. Generate the required project files and configurations.
-9. Run Composer installation commands to install all approved dependencies. Never skip Composer installation unless an actual environment blocker prevents it.
-10. Configure the project according to the approved standards.
-11. Automatically create the configured MySQL database if it does not exist.
-12. Automatically run all required migrations and seeders.
-13. Verify the generated project and report any issues.
+9. Create the project `README.md` from the approved `templates/README.md` template (the scaffold copies it automatically). Replace the `{{PROJECT_DESCRIPTION}}` placeholder using only the user's stated business requirements; never invent business details for it.
+10. Run Composer installation commands to install all approved dependencies. Never skip Composer installation unless an actual environment blocker prevents it.
+11. Configure the project according to the approved standards.
+12. Automatically create the configured MySQL database if it does not exist.
+13. Automatically run all required migrations and seeders.
+14. Verify the generated project and report any issues.
 
 If an essential requirement is unclear, ask the user before making assumptions.
 
 Do not start business feature implementation before the standardized foundation is ready and approved.
+
+### Execution Guidance
+
+- Use `scripts/scaffold.sh <project-folder-name> [database-name]` to perform the complete foundation setup: Laravel skeleton creation, approved template application, `.env` configuration, Composer installation, MySQL database creation, package migration publishing, migrations, Passport preparation, and conditional seeding. The script implements the command order documented in `references/authentication.md`.
+- Run the scaffold script (or any long Composer command) in the background; Composer may take 15+ minutes on constrained machines.
+- While Composer resolves, only create complete, syntactically valid application files. Do not wire `routes/api1.php` to module routes until Composer has finished.
+- Never run `passport:install` on a database that already contains the oauth tables; it fails because it re-runs migrations. Use the approved Passport 13 sequence.
+- The script seeds the database only after the Roles and Permissions Seeder is registered in `DatabaseSeeder`. When seeding was skipped, run `php artisan db:seed` after implementing the module seeders.
 
 ## 3. Technology Stack
 
@@ -103,6 +112,8 @@ Each module must have:
 
 Do not create additional Controllers or Services for the same module unless explicitly authorized.
 
+The Documentation module is the approved exception: one public `DocumentationController` with no Service and no Resources (see §19).
+
 The Controller delegates business operations to its module Service.
 
 Business logic and database query operations belong in the Service, not the Controller.
@@ -120,7 +131,9 @@ Follow `references/architecture.md` for the complete architecture rules.
 - Use `Route::controller()->prefix()->group()` for module routes.
 - The module prefix must be lowercase and defined once.
 - Additional module routes must use action paths inside the existing prefix group.
+- Define static action paths (such as `/bulk-delete`) before `{uuid}` routes so the parameter cannot shadow them.
 - Do not create unnecessary route subdirectories.
+- Every project also includes a public `routes/documentation.php` route file required from `api1.php`; it is the only route group without authentication middleware (see §19).
 
 ### Standard Module Endpoints
 
@@ -152,6 +165,8 @@ Every table must have:
 Every Model generates its UUID using the Model's `boot()` method and a `creating` callback with `Str::uuid()`.
 
 Do not use Laravel `HasUuids` trait.
+
+Add a unique `uuid` column to the framework's default `users` table migration, and to every package-published migration whose table holds application records (see `references/architecture.md`, Package Models Requiring Standard Columns).
 
 ### Naming
 
@@ -220,6 +235,7 @@ Use the following default local connection:
 - Automatically create the configured MySQL database if it does not exist.
 - Automatically run the required migrations after database creation.
 - Do not ask the user for approval before creating the database or running migrations.
+- If the derived database name already exists and contains tables, stop and ask the user for an alternate database name before running any migrations. Never migrate into, drop, or overwrite a pre-existing database that the scaffold did not create.
 - If MySQL is unavailable or the credentials lack the required permissions, report the actual blocker and do not pretend setup succeeded.
 
 ## 9. Database Transactions
@@ -411,7 +427,7 @@ Follow `references/localization.md`.
 ## 17. Authentication
 
 - Laravel Passport is the default API authentication system.
-- Prepare the standard authentication foundation.
+- Prepare the standard authentication foundation following the Passport 13 setup sequence in `references/authentication.md`; never run `passport:install` on a database that already contains the oauth tables.
 - Google Login is an optional feature.
 - Phone OTP verification is an optional feature.
 - Twilio is the default provider for phone OTP.
@@ -441,7 +457,24 @@ Swagger documentation is part of the backend project setup.
 
 Follow the Swagger reference when creating and documenting API endpoints.
 
-## 19. Laravel Configuration
+## 19. API Documentation Requirement
+
+- Reading `references/api-documentation.md` is mandatory when generating or modifying any backend project.
+- Follow all instructions in that reference when generating API documentation.
+- After completing the backend API implementation, MUST generate `docs/API_DOCUMENTATION.md`.
+- The generated file MUST cover every implemented module, endpoint, CRUD operation, and additional business action.
+- The documentation MUST be based on the actual implementation, not assumptions or initial requirements alone.
+- MUST generate and maintain both Swagger/OpenAPI documentation and `docs/API_DOCUMENTATION.md`.
+- Both documentation outputs MUST remain consistent with the actual API implementation.
+- Whenever an endpoint or its behavior changes, update both documentation outputs.
+- Do not consider backend generation complete until the API documentation has been generated and verified.
+- Every project MUST expose a public documentation endpoint by default: `GET /api/v1/documentation`, implemented by `App\Http\Controllers\V1\Documentation\DocumentationController` and the `routes/documentation.php` route file (copied automatically by the scaffold).
+- The endpoint MUST require no authentication and no permission. It returns `docs/API_DOCUMENTATION.md` with `Content-Type: text/markdown`.
+- Frontend and mobile clients always receive two documentation links: the Swagger UI and the public documentation endpoint.
+- If `docs/API_DOCUMENTATION.md` has not been generated yet, the endpoint returns the standard 404 API response shape.
+- The Documentation module is the approved exception to the module structure: exactly one Controller, no Service, and no Resources, because it serves a file and contains no business logic.
+
+## 20. Laravel Configuration
 
 Use the approved Laravel configuration templates.
 
@@ -454,7 +487,7 @@ Use the approved Laravel configuration templates.
 
 Do not silently replace or redesign approved configuration templates.
 
-## 20. Composer Configuration
+## 21. Composer Configuration
 
 Use the approved `templates/composer.json` as the source of truth for Composer dependencies and configuration.
 
@@ -468,7 +501,7 @@ Use the approved `templates/composer.json` as the source of truth for Composer d
 
 Follow `references/dependencies.md`.
 
-## 21. Mandatory References
+## 22. Mandatory References
 
 The following reference files are mandatory and must be read and followed when creating a project:
 
@@ -476,6 +509,7 @@ The following reference files are mandatory and must be read and followed when c
 - `references/database.md`
 - `references/models.md`
 - `references/api-standards.md`
+- `references/api-documentation.md`
 - `references/authentication.md`
 - `references/localization.md`
 - `references/helpers-and-traits.md`
@@ -486,7 +520,7 @@ Do not ignore relevant reference files.
 
 If a reference conflicts with this skill or another approved standard, explain the conflict and ask the user before proceeding.
 
-## 22. Mandatory Templates and Configuration
+## 23. Mandatory Templates and Configuration
 
 Every provided template is mandatory and must be used when applicable.
 
@@ -505,7 +539,7 @@ Never modify approved templates or standards without the user's explicit approva
 
 Do not consider a template optional unless the user explicitly approves that exception.
 
-## 23. Verification
+## 24. Verification
 
 After creating the standardized foundation:
 
@@ -513,6 +547,7 @@ After creating the standardized foundation:
 - Verify the PHP and Laravel requirements.
 - Verify Composer configuration and dependency installation.
 - Verify all mandatory templates were applied.
+- Verify `README.md` exists in the project root, was created from the approved template, and contains no unresolved placeholders.
 - Verify the route configuration and API prefix.
 - Verify the MySQL environment configuration.
 - Verify the approved middleware and locale configuration.
@@ -523,7 +558,7 @@ After creating the standardized foundation:
 
 Do not claim that the project or an endpoint works unless it has actually been tested.
 
-## 24. Important Restrictions
+## 25. Important Restrictions
 
 - Never invent business requirements.
 - Never invent architecture or additional layers.
