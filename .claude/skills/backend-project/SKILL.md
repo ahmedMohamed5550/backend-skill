@@ -36,7 +36,12 @@ When asked to create a new project:
 11. Configure the project according to the approved standards.
 12. Automatically create the configured MySQL database if it does not exist.
 13. Automatically run all required migrations and seeders.
-14. Verify the generated project and report any issues.
+14. Generate the database documentation files:
+    - `docs/ERD.md`: A Mermaid Entity Relationship Diagram representing the actual database schema, tables, columns, primary keys, foreign keys, and relationships.
+    - `docs/DATABASE_DOCUMENTATION.md`: Concise documentation for every database table, including its purpose, important columns and their descriptions, relationships, and relevant business rules.
+    - Generate both files based on the actual implemented database schema, migrations, models, and relationships. Do not document anything that does not exist in the implementation.
+15. Follow `references/testing.md` to implement the testing phase: prepare the isolated test environment, create the Feature and Unit Tests for the implemented modules and business logic, and run the complete test suite until all tests pass.
+16. Verify the generated project and report any issues, including verifying that both database documentation files exist and accurately represent the actual database schema.
 
 If an essential requirement is unclear, ask the user before making assumptions.
 
@@ -49,6 +54,9 @@ Do not start business feature implementation before the standardized foundation 
 - While Composer resolves, only create complete, syntactically valid application files. Do not wire `routes/api1.php` to module routes until Composer has finished.
 - Never run `passport:install` on a database that already contains the oauth tables; it fails because it re-runs migrations. Use the approved Passport 13 sequence.
 - The script seeds the database only after the Roles and Permissions Seeder is registered in `DatabaseSeeder`. When seeding was skipped, run `php artisan db:seed` after implementing the module seeders.
+- After any `composer.json` change that affects autoloading (PSR-4 mappings, classmaps, or `files` entries), run `composer dump-autoload` before running tests or any command that depends on the new classes. Never assume edited or newly created classes are autoloaded.
+- For autoload-only regeneration, use `composer dump-autoload --no-scripts`; it skips the `post-autoload-dump` hooks such as `artisan package:discover`. Run `php artisan package:discover` separately when packages were added, updated, or removed.
+- Do not pipe Composer output through commands such as `tail` or `head`: their buffering hides progress and hangs, and the pipe can mask Composer's real exit code. Read Composer's output directly, treat any non-zero exit code as a failure, and verify the actual result (for example, that a new test namespace resolves) before reporting the step as successful.
 
 ## 3. Technology Stack
 
@@ -474,7 +482,23 @@ Follow the Swagger reference when creating and documenting API endpoints.
 - If `docs/API_DOCUMENTATION.md` has not been generated yet, the endpoint returns the standard 404 API response shape.
 - The Documentation module is the approved exception to the module structure: exactly one Controller, no Service, and no Resources, because it serves a file and contains no business logic.
 
-## 20. Laravel Configuration
+## 20. Database Documentation Requirement
+
+- MUST generate `docs/ERD.md` for every backend project.
+- MUST generate `docs/DATABASE_DOCUMENTATION.md` for every backend project.
+- `docs/ERD.md` MUST contain a Mermaid Entity Relationship Diagram representing the actual database schema, including tables, relevant columns, primary keys, foreign keys, and relationships.
+- `docs/DATABASE_DOCUMENTATION.md` MUST provide concise documentation for every database table, including:
+  - Table purpose.
+  - Important columns and their descriptions.
+  - Relationships with other tables.
+  - Relevant business rules affecting the table.
+- Documentation MUST be based on the actual implemented database schema, migrations, models, and relationships.
+- Do not document tables, columns, or relationships that do not exist in the actual implementation.
+- Keep the documentation concise and practical, focusing on helping backend developers quickly understand the database structure.
+- MUST update both files whenever database schema or relationships change.
+- Do not consider backend project generation complete until both files have been generated and verified.
+
+## 21. Laravel Configuration
 
 Use the approved Laravel configuration templates.
 
@@ -487,7 +511,7 @@ Use the approved Laravel configuration templates.
 
 Do not silently replace or redesign approved configuration templates.
 
-## 21. Composer Configuration
+## 22. Composer Configuration
 
 Use the approved `templates/composer.json` as the source of truth for Composer dependencies and configuration.
 
@@ -501,7 +525,7 @@ Use the approved `templates/composer.json` as the source of truth for Composer d
 
 Follow `references/dependencies.md`.
 
-## 22. Mandatory References
+## 23. Mandatory References
 
 The following reference files are mandatory and must be read and followed when creating a project:
 
@@ -515,12 +539,14 @@ The following reference files are mandatory and must be read and followed when c
 - `references/helpers-and-traits.md`
 - `references/dependencies.md`
 - `references/swagger.md`
+- `references/testing.md`
+- `references/file-storage.md`
 
 Do not ignore relevant reference files.
 
 If a reference conflicts with this skill or another approved standard, explain the conflict and ask the user before proceeding.
 
-## 23. Mandatory Templates and Configuration
+## 24. Mandatory Templates and Configuration
 
 Every provided template is mandatory and must be used when applicable.
 
@@ -539,7 +565,7 @@ Never modify approved templates or standards without the user's explicit approva
 
 Do not consider a template optional unless the user explicitly approves that exception.
 
-## 24. Verification
+## 25. Verification
 
 After creating the standardized foundation:
 
@@ -548,17 +574,20 @@ After creating the standardized foundation:
 - Verify Composer configuration and dependency installation.
 - Verify all mandatory templates were applied.
 - Verify `README.md` exists in the project root, was created from the approved template, and contains no unresolved placeholders.
+- Verify `docs/ERD.md` and `docs/DATABASE_DOCUMENTATION.md` exist, match the actual implemented database schema, and document no tables, columns, or relationships that do not exist.
 - Verify the route configuration and API prefix.
 - Verify the MySQL environment configuration.
 - Verify the approved middleware and locale configuration.
 - Verify the Helpers autoload configuration.
 - Verify that the approved references and architecture have been followed.
 - Verify that the project can run without configuration or syntax errors.
+- Verify the testing phase was completed following `references/testing.md`: the isolated test environment is configured, Feature Tests exist for the implemented modules, and the complete test suite passes.
+- When the project implements file uploads or stored files, verify file operations follow `references/file-storage.md`: database references match stored paths, and no files are deleted or overwritten before their related transaction commits.
 - Report any missing dependencies, environment limitations, or failed commands honestly.
 
 Do not claim that the project or an endpoint works unless it has actually been tested.
 
-## 25. Important Restrictions
+## 26. Important Restrictions
 
 - Never invent business requirements.
 - Never invent architecture or additional layers.
@@ -571,4 +600,6 @@ Do not claim that the project or an endpoint works unless it has actually been t
 - Never use SQLite as the default database.
 - Automatically create the project's MySQL database if it does not exist, without asking for approval.
 - Never skip mandatory templates or references.
+- Never run tests against the main project database.
+- Never delete or overwrite a stored file before its related database transaction commits.
 - Never modify approved standards without explicit approval.
