@@ -20,7 +20,7 @@ set -euo pipefail
 #                          lowercase snake_case.
 #
 # Workspace paths come from scripts/config.sh. Run this script in the
-# background: the Composer install phase may take 15+ minutes.
+# background: Composer install.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=config.sh
