@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\V1\{{Module}}\{{Module}}Controller;
+use App\Http\Controllers\V1\{{Module}}Controller;
 
 Route::controller({{Module}}Controller::class)
     ->prefix('{{module}}')

@@ -26,28 +26,23 @@ Do not run the complete testing process after every individual module.
 
 ## 3. Test Directory Structure
 
-Organize tests by API version and module, matching the project's architecture.
+Organize tests by API version, matching the project's architecture.
 
 ```text
 tests/
 ├── Feature/
 │   └── V1/
-│       ├── Categories/
-│       │   └── CategoryTest.php
-│       ├── Books/
-│       │   └── BookTest.php
-│       └── Borrowings/
-│           └── BorrowingTest.php
+│       ├── CategoryTest.php
+│       ├── BookTest.php
+│       └── BorrowingTest.php
 └── Unit/
     └── V1/
-        ├── Categories/
-        ├── Books/
-        └── Borrowings/
+        └── PricingTest.php
 ```
 
-- Feature Tests must follow the `V1` version structure.
-- Organize test classes by their corresponding module.
-- Unit Tests must follow the same version and module organization.
+- Feature Tests must be placed directly under `tests/Feature/V1/`.
+- Unit Tests must be placed directly under `tests/Unit/V1/`.
+- Do not create module-specific subdirectories inside the test directories.
 - Use descriptive test class and method names.
 
 ## 4. Test Environment Setup

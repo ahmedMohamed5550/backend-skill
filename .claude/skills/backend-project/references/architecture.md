@@ -14,8 +14,9 @@
 ## Directory Structure and Namespaces
 
 ### Controllers
-- Directory: app/Http/Controllers/V1/{Module}
-- Namespace: App\Http\Controllers\V1\{Module}
+- Directory: app/Http/Controllers/V1
+- Namespace: App\Http\Controllers\V1
+- Controllers must be placed directly inside the V1 directory, not in module-specific subdirectories or subnamespaces.
 
 ### Requests
 - Directory: app/Http/Requests/V1/{Module}

@@ -16,7 +16,7 @@ Use Laravel's `$table->id()`, `$table->uuid('uuid')->unique()`, and `$table->tim
 - Pivot tables: follow Laravel's conventional pivot table naming.
 
 ## UUID Generation
-- UUID scope and rules are defined in SKILL.md §7.
+- See also: SKILL.md › Database Standards.
 - Generate the UUID via a static `creating` callback in the Model's `boot()` method; the canonical implementation lives in `references/models.md`.
 - Do not use Laravel's `HasUuids` trait.
 
@@ -53,16 +53,14 @@ Use Laravel's `$table->id()`, `$table->uuid('uuid')->unique()`, and `$table->tim
 
 ## Database Transactions
 
-- Transaction scope and rules are defined in SKILL.md §9.
+- See also: SKILL.md › Database Transactions.
 - Transactions must be implemented in the Service layer, never in Controllers.
 - Controllers catch propagated exceptions, log them, and return the approved generic API error response.
 - Never manually commit a transaction that is managed by `DB::transaction()`.
 
 ## Bulk Delete
 
-- Follows SKILL.md §10: accept a collection of UUIDs, verify all of them exist, and delete inside one database transaction.
-- All-or-nothing: never partially delete records.
-- Do not implement Bulk Update unless explicitly requested.
+- See also: SKILL.md › Delete Operations.
 
 ## Model Attributes
 - Prefer `$fillable` for mass assignment.
@@ -70,23 +68,10 @@ Use Laravel's `$table->id()`, `$table->uuid('uuid')->unique()`, and `$table->tim
 
 ## Default Database Configuration
 
-- MySQL is the mandatory default database for every new backend project.
-- The database name must be generated automatically from the project name.
-- Normalize the project name to lowercase snake_case for the database name.
-- Default local connection:
-  - DB_CONNECTION=mysql
-  - DB_HOST=127.0.0.1
-  - DB_PORT=3306
-  - DB_USERNAME=root
-  - DB_PASSWORD=
+- See also: SKILL.md › Default Database Configuration.
 - Database credentials must be configured through environment variables.
 - Never hardcode database credentials in application code.
 - The scaffold process must configure the generated project's `.env` automatically.
-- Automatically create the database if it does not exist, without asking the user for approval.
-- Automatically run all required migrations after database creation.
-- Do not ask the user to choose a database name, approve database creation, or approve migrations.
-- If the derived database name already exists and contains tables, stop and ask the user for an alternate database name before running any migrations. Never migrate into, drop, or overwrite a pre-existing database that the scaffold did not create.
-- If MySQL is unavailable or the configured credentials lack the required permissions, report the actual error clearly and do not pretend setup succeeded.
 
 
 ## Default Admin User Seeder

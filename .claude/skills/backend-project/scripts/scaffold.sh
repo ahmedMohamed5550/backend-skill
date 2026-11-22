@@ -63,7 +63,7 @@ mkdir -p \
     "$PROJECT_PATH/app/Traits" \
     "$PROJECT_PATH/app/Http/Middleware" \
     "$PROJECT_PATH/app/Http/Controllers" \
-    "$PROJECT_PATH/app/Http/Controllers/V1/Documentation" \
+    "$PROJECT_PATH/app/Http/Controllers/V1" \
     "$PROJECT_PATH/lang/en" \
     "$PROJECT_PATH/lang/ar"
 cp "$TEMPLATES_DIR/composer.json"                       "$PROJECT_PATH/composer.json"
@@ -78,7 +78,7 @@ cp "$TEMPLATES_DIR/lang/en/messages.php"                "$PROJECT_PATH/lang/en/m
 cp "$TEMPLATES_DIR/lang/ar/messages.php"                "$PROJECT_PATH/lang/ar/messages.php"
 cp "$TEMPLATES_DIR/routes/api1.php"                     "$PROJECT_PATH/routes/api1.php"
 cp "$TEMPLATES_DIR/routes/documentation.php"            "$PROJECT_PATH/routes/documentation.php"
-cp "$TEMPLATES_DIR/app/Http/Controllers/V1/Documentation/DocumentationController.php" "$PROJECT_PATH/app/Http/Controllers/V1/Documentation/DocumentationController.php"
+cp "$TEMPLATES_DIR/app/Http/Controllers/V1/DocumentationController.php" "$PROJECT_PATH/app/Http/Controllers/V1/DocumentationController.php"
 cp "$TEMPLATES_DIR/README.md"                           "$PROJECT_PATH/README.md"
 cp "$PROJECT_PATH/.env.example" "$PROJECT_PATH/.env"
 

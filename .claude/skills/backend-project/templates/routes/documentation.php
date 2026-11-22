@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\V1\Documentation\DocumentationController;
+use App\Http\Controllers\V1\DocumentationController;
 use Illuminate\Support\Facades\Route;
 
 /*

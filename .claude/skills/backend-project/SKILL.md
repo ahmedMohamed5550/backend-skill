@@ -26,30 +26,30 @@ When asked to create a new project:
 1. Read this entire SKILL.md file.
 2. Read all relevant reference files.
 3. Read the configuration script and understand the configured workspace paths.
-4. Automatically derive the project name from the user's business requirements. Never ask the user to provide or confirm the project name.
+4. Automatically derive the project name from the user's business requirements following the Database Naming rules in the Default Database Configuration section. Never ask the user to provide or confirm the project name or database name.
 5. Understand the business requirements.
 6. Prepare the standardized Laravel foundation and initialize the Laravel project using `scripts/scaffold.sh` (see Execution Guidance below).
-7. Use the approved templates and configuration files.
-8. Generate the required project files and configurations.
-9. Create the project `README.md` from the approved `templates/README.md` template (the scaffold copies it automatically). Replace the `{{PROJECT_DESCRIPTION}}` placeholder using only the user's stated business requirements; never invent business details for it.
-10. Run Composer installation commands to install all approved dependencies. Never skip Composer installation unless an actual environment blocker prevents it.
-11. Configure the project according to the approved standards.
-12. Automatically create the configured MySQL database if it does not exist.
-13. Automatically run all required migrations and seeders.
-14. Generate the database documentation files:
-    - `docs/ERD.md`: A Mermaid Entity Relationship Diagram representing the actual database schema, tables, columns, primary keys, foreign keys, and relationships.
-    - `docs/DATABASE_DOCUMENTATION.md`: Concise documentation for every database table, including its purpose, important columns and their descriptions, relationships, and relevant business rules.
-    - Generate both files based on the actual implemented database schema, migrations, models, and relationships. Do not document anything that does not exist in the implementation.
-15. Follow `references/testing.md` to implement the testing phase: prepare the isolated test environment, create the Feature and Unit Tests for the implemented modules and business logic, and run the complete test suite until all tests pass.
-16. Verify the generated project and report any issues, including verifying that both database documentation files exist and accurately represent the actual database schema.
+7. Analyze the business requirements and create `docs/IMPLEMENTATION_PLAN.md` following the Implementation Plan Requirement section: break the project into logical phases and ordered tasks, then start implementation immediately without presenting the plan to the user or waiting for approval.
+8. Keep `docs/IMPLEMENTATION_PLAN.md` updated while implementing: mark tasks `In Progress` and `Completed` as work progresses, and add newly discovered tasks or requirements to the plan as they emerge.
+9. Use the approved templates and configuration files.
+10. Generate the required project files and configurations.
+11. Create the project `README.md` from the approved `templates/README.md` template (the scaffold copies it automatically). Replace the `{{PROJECT_DESCRIPTION}}` placeholder using only the user's stated business requirements; never invent business details for it.
+12. Run Composer installation commands to install all approved dependencies. Never skip Composer installation unless an actual environment blocker prevents it.
+13. Configure the project according to the approved standards.
+14. Automatically create the configured MySQL database if it does not exist.
+15. Automatically run all required migrations and seeders.
+16. Generate the database documentation files `docs/ERD.md` and `docs/DATABASE_DOCUMENTATION.md` as required by the Database Documentation Requirement section.
+17. Follow `references/testing.md` to implement the testing phase: prepare the isolated test environment, create the Feature and Unit Tests for the implemented modules and business logic, and run the complete test suite until all tests pass.
+18. Verify the generated project and report any issues, including verifying that both database documentation files exist and accurately represent the actual database schema, and that every task in `docs/IMPLEMENTATION_PLAN.md` is implemented, tested, and marked `Completed`.
 
 If an essential requirement is unclear, ask the user before making assumptions.
 
-Do not start business feature implementation before the standardized foundation is ready and approved.
+Do not start business feature implementation before the standardized foundation is ready.
 
 ### Execution Guidance
 
 - Use `scripts/scaffold.sh <project-folder-name> [database-name]` to perform the complete foundation setup: Laravel skeleton creation, approved template application, `.env` configuration, Composer installation, MySQL database creation, package migration publishing, migrations, Passport preparation, and conditional seeding. The script implements the command order documented in `references/authentication.md`.
+- Create `docs/IMPLEMENTATION_PLAN.md` as soon as the scaffold has created the project skeleton. The scaffold fails if the project folder already exists, so the plan cannot be written before it runs: create the `docs/` directory if it does not exist, then write the plan before creating any application files.
 - Run the scaffold script (or any long Composer command) in the background; Composer may take 15+ minutes on constrained machines.
 - While Composer resolves, only create complete, syntactically valid application files. Do not wire `routes/api1.php` to module routes until Composer has finished.
 - Never run `passport:install` on a database that already contains the oauth tables; it fails because it re-runs migrations. Use the approved Passport 13 sequence.
@@ -58,7 +58,21 @@ Do not start business feature implementation before the standardized foundation 
 - For autoload-only regeneration, use `composer dump-autoload --no-scripts`; it skips the `post-autoload-dump` hooks such as `artisan package:discover`. Run `php artisan package:discover` separately when packages were added, updated, or removed.
 - Do not pipe Composer output through commands such as `tail` or `head`: their buffering hides progress and hangs, and the pipe can mask Composer's real exit code. Read Composer's output directly, treat any non-zero exit code as a failure, and verify the actual result (for example, that a new test namespace resolves) before reporting the step as successful.
 
-## 3. Technology Stack
+## 3. Implementation Plan Requirement
+
+- MUST generate `docs/IMPLEMENTATION_PLAN.md` for every backend project.
+- Generate the plan dynamically from the project's actual business requirements. Do not use a fixed list of modules or a predetermined task list.
+- Break the project into logical phases and tasks, considering dependencies and implementation order.
+- Include every relevant activity the project actually requires, such as project setup, database, models, APIs, authentication, authorization, testing, and documentation.
+- Every task must have a clear description and a status: `Pending`, `In Progress`, or `Completed`.
+- The plan describes WHAT must be done and in WHAT order. This skill and its references define HOW to implement it.
+- After generating the plan, start implementation immediately. Never present the plan to the user or wait for its approval, and do not ask additional questions just to approve the plan.
+- Follow the plan during implementation and update task statuses as work progresses.
+- If additional tasks or requirements emerge during implementation, add them to the plan and continue implementation.
+- Before completing the project, verify that all planned tasks have been implemented and tested.
+- Do not consider backend project generation complete until every task in `docs/IMPLEMENTATION_PLAN.md` is implemented, tested, and marked `Completed`.
+
+## 4. Technology Stack
 
 - PHP: ^8.4
 - Laravel: ^13.0
@@ -74,7 +88,7 @@ Do not independently replace or remove approved dependencies.
 
 Follow `references/dependencies.md` for the approved dependency list.
 
-## 4. Workspace and Project Location
+## 5. Workspace and Project Location
 
 The skill workspace contains the skill configuration, references, templates, and scripts.
 
@@ -90,13 +104,13 @@ Do not hardcode workspace paths when the configuration script provides them.
 
 Never create a new project inside the skill workspace.
 
-## 5. Project Architecture
+## 6. Project Architecture
 
 All application implementation must follow API Version 1.
 
 ### Directory Structure
 
-- Controllers: `App\Http\Controllers\V1\{Module}`
+- Controllers: `App\Http\Controllers\V1`
 - Requests: `App\Http\Requests\V1\{Module}`
 - Resources: `App\Http\Resources\V1\{Module}`
 - Services: `App\Services\V1\{Module}`
@@ -104,6 +118,8 @@ All application implementation must follow API Version 1.
 - Enums: `App\Enums`
 - Traits: `App\Traits`
 - Helpers: `App\Helpers`
+
+Controllers are stored directly inside `App\Http\Controllers\V1` and must not use module-specific subnamespaces.
 
 Models are stored directly inside `App\Models\V1`, not in module-specific folders.
 
@@ -120,7 +136,7 @@ Each module must have:
 
 Do not create additional Controllers or Services for the same module unless explicitly authorized.
 
-The Documentation module is the approved exception: one public `DocumentationController` with no Service and no Resources (see §19).
+The Documentation module is the approved exception: one public `DocumentationController` with no Service and no Resources (see API and Swagger Documentation Requirement).
 
 The Controller delegates business operations to its module Service.
 
@@ -130,7 +146,7 @@ Do not create Base Models, Repositories, or additional architectural layers.
 
 Follow `references/architecture.md` for the complete architecture rules.
 
-## 6. Routes
+## 7. Routes
 
 - Use `routes/api1.php` as the main API route file.
 - Configure the API prefix as `api/v1`.
@@ -141,7 +157,7 @@ Follow `references/architecture.md` for the complete architecture rules.
 - Additional module routes must use action paths inside the existing prefix group.
 - Define static action paths (such as `/bulk-delete`) before `{uuid}` routes so the parameter cannot shadow them.
 - Do not create unnecessary route subdirectories.
-- Every project also includes a public `routes/documentation.php` route file required from `api1.php`; it is the only route group without authentication middleware (see §19).
+- Every project also includes a public `routes/documentation.php` route file required from `api1.php`; it is the only route group without authentication middleware (see API and Swagger Documentation Requirement).
 
 ### Standard Module Endpoints
 
@@ -156,9 +172,9 @@ Each module follows these default endpoints:
 
 Additional endpoints depend on business requirements.
 
-Follow the approved route template instead of creating a different route structure.
+Follow the approved module route template `templates/routes/module-routes.php` instead of creating a different route structure.
 
-## 7. Database Standards
+## 8. Database Standards
 
 ### Tables
 
@@ -217,7 +233,7 @@ Use Laravel default directories:
 
 Follow `references/database.md` and `references/models.md`.
 
-## 8. Default Database Configuration
+## 9. Default Database Configuration
 
 MySQL is mandatory as the default database for every new backend project.
 
@@ -246,7 +262,7 @@ Use the following default local connection:
 - If the derived database name already exists and contains tables, stop and ask the user for an alternate database name before running any migrations. Never migrate into, drop, or overwrite a pre-existing database that the scaffold did not create.
 - If MySQL is unavailable or the credentials lack the required permissions, report the actual blocker and do not pretend setup succeeded.
 
-## 9. Database Transactions
+## 10. Database Transactions
 
 Every operation that changes database data MUST run inside `DB::transaction()`.
 
@@ -264,7 +280,7 @@ Read-only operations do not require transactions.
 
 Use Laravel automatic commit and rollback behavior.
 
-## 10. Delete Operations
+## 11. Delete Operations
 
 Every module must support:
 
@@ -281,7 +297,7 @@ Bulk delete must be all-or-nothing:
 
 Do not implement Bulk Update.
 
-## 11. Requests and Resources
+## 12. Requests and Resources
 
 ### Requests
 
@@ -304,49 +320,35 @@ Each module must have exactly:
 
 Keep them separate even if their current structures are similar.
 
-## 12. PHP Enums
+## 13. PHP Enums
 
 - Use PHP Backed Enums.
 - Store enum values in the database as regular strings.
 - Store all enums under `app/Enums`.
 - Use namespace `App\Enums`.
 - Use one file per enum.
+- Follow the approved enum example template `templates/app/Enums/ExampleEnum.php`.
 - Use enums in Request validation.
 - Use enum casting in Models.
 - Do not use database ENUM column types.
 
-## 13. API Responses
+## 14. API Responses
 
 Every API response must use `ApiResponseTrait` located at:
 
 `app/Traits/ApiResponseTrait.php`
 
-The trait provides the `apiResponse()` method.
-
-Use the same response method for:
-
-- Successful operations.
-- Failed operations.
-- Validation errors.
-- Exceptions.
-- Other API responses.
-
-The response structure must contain:
-
-- `message`
-- `status_code`
-- `data`
-- `pagination` when applicable.
+The trait provides the `apiResponse()` method. Use the same response method for all API responses — successful operations, failed operations, validation errors, exceptions, and any other API response.
 
 Never return a different JSON response structure.
+
+The approved response structure and its field rules are specified in `references/api-standards.md` (API Response Structure).
 
 Exceptions and validation errors must be handled centrally and converted to the same response structure.
 
 Use the approved ApiResponseTrait template without silently changing its implementation.
 
-Follow `references/api-standards.md`.
-
-## 14. List Operations
+## 15. List Operations
 
 Every List operation must support:
 
@@ -374,7 +376,7 @@ The Service is responsible for preparing and executing list queries.
 
 Validate sorting columns against allowed columns and restrict sort direction to `asc` or `desc`.
 
-## 15. Helpers and Traits
+## 16. Helpers and Traits
 
 Every project must include:
 
@@ -406,7 +408,7 @@ Every project must include the approved `ApiResponseTrait` template.
 
 Follow `references/helpers-and-traits.md`.
 
-## 16. Localization
+## 17. Localization
 
 Every project must have Laravel localization structure ready.
 
@@ -432,7 +434,7 @@ Keep localization available by default; its usage depends on project requirement
 
 Follow `references/localization.md`.
 
-## 17. Authentication
+## 18. Authentication
 
 - Laravel Passport is the default API authentication system.
 - Prepare the standard authentication foundation following the Passport 13 setup sequence in `references/authentication.md`; never run `passport:install` on a database that already contains the oauth tables.
@@ -455,17 +457,15 @@ Every protected Controller action must have its required permission middleware.
 
 Follow `references/authentication.md` for the complete authorization implementation, permission naming, seeders, and Role and Permission Management module.
 
-## 18. Swagger Documentation
+## 19. API and Swagger Documentation Requirement
 
-Use the approved Swagger documentation reference:
+### Swagger/OpenAPI Documentation
 
-`references/swagger.md`
+- Swagger documentation is part of the backend project setup.
+- Use the approved Swagger documentation reference: `references/swagger.md`.
+- Follow the Swagger reference when creating and documenting API endpoints.
 
-Swagger documentation is part of the backend project setup.
-
-Follow the Swagger reference when creating and documenting API endpoints.
-
-## 19. API Documentation Requirement
+### API Documentation
 
 - Reading `references/api-documentation.md` is mandatory when generating or modifying any backend project.
 - Follow all instructions in that reference when generating API documentation.
@@ -476,7 +476,7 @@ Follow the Swagger reference when creating and documenting API endpoints.
 - Both documentation outputs MUST remain consistent with the actual API implementation.
 - Whenever an endpoint or its behavior changes, update both documentation outputs.
 - Do not consider backend generation complete until the API documentation has been generated and verified.
-- Every project MUST expose a public documentation endpoint by default: `GET /api/v1/documentation`, implemented by `App\Http\Controllers\V1\Documentation\DocumentationController` and the `routes/documentation.php` route file (copied automatically by the scaffold).
+- Every project MUST expose a public documentation endpoint by default: `GET /api/v1/documentation`, implemented by `App\Http\Controllers\V1\DocumentationController` and the `routes/documentation.php` route file (copied automatically by the scaffold).
 - The endpoint MUST require no authentication and no permission. It returns `docs/API_DOCUMENTATION.md` with `Content-Type: text/markdown`.
 - Frontend and mobile clients always receive two documentation links: the Swagger UI and the public documentation endpoint.
 - If `docs/API_DOCUMENTATION.md` has not been generated yet, the endpoint returns the standard 404 API response shape.
@@ -529,18 +529,20 @@ Follow `references/dependencies.md`.
 
 The following reference files are mandatory and must be read and followed when creating a project:
 
-- `references/architecture.md`
-- `references/database.md`
-- `references/models.md`
-- `references/api-standards.md`
-- `references/api-documentation.md`
-- `references/authentication.md`
-- `references/localization.md`
-- `references/helpers-and-traits.md`
-- `references/dependencies.md`
-- `references/swagger.md`
-- `references/testing.md`
-- `references/file-storage.md`
+| Reference | Covers | Primary use when |
+|---|---|---|
+| `references/architecture.md` | Project structure, namespaces, module rules and responsibilities, service injection, roles and permissions architecture, package models | Implementing any module or architectural layer. |
+| `references/database.md` | Migration and table implementation details, indexes, database seeders, default admin user | Creating migrations, seeders, or database configuration. |
+| `references/models.md` | Model location, UUID generation implementation, mass assignment, relationships, API identification | Creating or modifying Models. |
+| `references/api-standards.md` | Controllers, Services, Requests, Resources, API response structure, delete and list operations, exception handling, route and permission naming | Implementing endpoints and API behavior. |
+| `references/api-documentation.md` | `docs/API_DOCUMENTATION.md` generation standard | Generating or updating API documentation. |
+| `references/authentication.md` | Passport 13 setup sequence, Google Login, phone OTP, authorization and permissions implementation | Implementing authentication or permissions. |
+| `references/localization.md` | Supported languages, `SetLocale` middleware | Configuring localization. |
+| `references/helpers-and-traits.md` | Approved Helpers methods, `ApiResponseTrait`, excluded helper files | Using Helpers or the response trait. |
+| `references/dependencies.md` | Approved Composer dependencies and autoload configuration | Modifying `composer.json` or installing packages. |
+| `references/swagger.md` | L5-Swagger annotation standards | Annotating endpoints for Swagger. |
+| `references/testing.md` | Test environment, Feature and Unit test standards | Implementing or running tests. |
+| `references/file-storage.md` | File upload, replacement, deletion, storage consistency | Implementing file uploads or stored files. |
 
 Do not ignore relevant reference files.
 
@@ -553,6 +555,30 @@ Every provided template is mandatory and must be used when applicable.
 Never ignore, skip, or replace an existing template with a custom implementation.
 
 Always read and follow the relevant references and templates before implementation.
+
+### Template Manifest
+
+Templates the scaffold copies automatically (do not copy them manually):
+
+- `templates/composer.json`
+- `templates/bootstrap/app.php`
+- `templates/bootstrap/providers.php`
+- `templates/config/app.php`
+- `templates/app/Helpers/Helpers.php`
+- `templates/app/Traits/ApiResponseTrait.php`
+- `templates/app/Http/Middleware/SetLocale.php`
+- `templates/app/Http/Controllers/Controller.php`
+- `templates/lang/en/messages.php`
+- `templates/lang/ar/messages.php`
+- `templates/routes/api1.php`
+- `templates/routes/documentation.php`
+- `templates/app/Http/Controllers/V1/DocumentationController.php`
+- `templates/README.md`
+
+Templates to adapt when implementing modules (not copied by the scaffold):
+
+- `templates/routes/module-routes.php` — approved structure for each module route file (see Routes).
+- `templates/app/Enums/ExampleEnum.php` — approved example for PHP Backed Enums (see PHP Enums).
 
 If a target file already exists:
 
@@ -575,6 +601,7 @@ After creating the standardized foundation:
 - Verify all mandatory templates were applied.
 - Verify `README.md` exists in the project root, was created from the approved template, and contains no unresolved placeholders.
 - Verify `docs/ERD.md` and `docs/DATABASE_DOCUMENTATION.md` exist, match the actual implemented database schema, and document no tables, columns, or relationships that do not exist.
+- Verify `docs/IMPLEMENTATION_PLAN.md` exists, matches the actual implementation, and every task is implemented, tested, and marked `Completed`.
 - Verify the route configuration and API prefix.
 - Verify the MySQL environment configuration.
 - Verify the approved middleware and locale configuration.
