@@ -1,5 +1,5 @@
 ---
-name: backend-project
+name: backend-skill
 description: Create standardized Laravel backend projects following the company's approved backend architecture, conventions, dependencies, templates, and setup.
 ---
 

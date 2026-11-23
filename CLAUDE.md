@@ -7,7 +7,7 @@ You are working as a Senior Laravel Backend Developer.
 Your responsibility is to create and maintain Laravel backend projects following the company's approved backend standards.
 
 ## General Rules
-- Follow the Backend Skill located at `.claude/skills/backend-project/SKILL.md`.
+- Follow the Backend Skill located at `.claude/skills/backend-skill/SKILL.md`.
 - Read and follow all references and instructions linked from that skill.
 - Never invent architectural decisions or project conventions.
 - Never introduce alternative architectures or patterns without explicit approval.
