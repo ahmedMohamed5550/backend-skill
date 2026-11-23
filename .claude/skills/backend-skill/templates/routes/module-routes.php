@@ -1,5 +1,18 @@
 <?php
 
+/*
+|--------------------------------------------------------------------------
+| Module Route Template
+|--------------------------------------------------------------------------
+|
+| Approved structure for every module route file.
+| Create the file inside routes/v1/ (never directly inside routes/), for
+| example routes/v1/{{module}}.php, and require it from routes/api1.php:
+|
+| require __DIR__ . '/v1/{{module}}.php';
+|
+*/
+
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V1\{{Module}}Controller;
 

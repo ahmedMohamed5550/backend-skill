@@ -55,10 +55,13 @@ For each module:
 
 ## Routes
 - Main API routes file: routes/api1.php
-- Each module must have its own route file.
-- The main api1.php file must require the module route files.
+- routes/api1.php must be the only skill-generated route file directly inside routes/.
+- Each module must have its own route file inside routes/v1/, including the Auth and User modules.
+- Laravel's own routes/web.php and routes/console.php skeleton files stay unchanged.
+- The main api1.php file must require every generated routes/v1/ route file.
 - Use Laravel Route controller groups with controller and prefix where applicable.
 - Keep route definitions organized by module.
+- Do not create route subdirectories other than routes/v1/; module route files sit directly inside routes/v1/.
 
 ## Database Files
 Use Laravel's default locations:
@@ -153,3 +156,4 @@ Some packages own their own database tables and Models (for example, Spatie Lara
 - Never modify vendor package internals to achieve this.
 - All project code — including seeders, controllers, and services — MUST import the extended `App\Models\V1` Models, never the vendor Model class. Importing the vendor Model silently skips the UUID hook and fails on insert with "Field 'uuid' doesn't have a default value".
 - The same rule applies to the framework's default `users` table: add the unique `uuid` column to the users migration and keep the project's User Model in `App\Models\V1\User` with the standard UUID hook.
+- The User Model exists exactly once: the scaffold installs `App\Models\V1\User` from the approved template and removes the Laravel skeleton's default `app/Models/User.php` and `database/factories/UserFactory.php`. Never recreate `App\Models\User`; all authentication, authorization, config, seeder, and factory references point at `App\Models\V1\User`.

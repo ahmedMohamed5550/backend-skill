@@ -77,6 +77,7 @@ Use Laravel's `$table->id()`, `$table->uuid('uuid')->unique()`, and `$table->tim
 ## Default Admin User Seeder
 
 - The default admin user must have full access to the entire application.
+- Create the default admin user on the single `App\Models\V1\User` model — never on the skeleton default `App\Models\User`, which the scaffold removes.
 - Automatically assign all available permissions to the Admin role.
 - If the project uses Spatie Laravel Permission, synchronize all defined permissions with the Admin role.
 - Ensure the Admin role has unrestricted access to all modules and their actions, including Create, List, Show, Update, Delete, and any additional permissions.

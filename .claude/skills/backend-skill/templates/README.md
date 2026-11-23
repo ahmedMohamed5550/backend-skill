@@ -2,6 +2,20 @@
 
 {{PROJECT_DESCRIPTION}}
 
+## Project Status
+
+This project is `BLOCKED` by default. It becomes `READY` only after the Backend Skill Completion Gate passes, which requires:
+
+- All Backend Skill requirements fully implemented.
+- Composer and all dependencies installed successfully.
+- Database setup, migrations, seeders, and required configurations completed.
+- All routes, authentication, and integrations working correctly.
+- Swagger and all required documentation generated and verified.
+- The complete required test suite passing.
+- The application booting and running successfully.
+
+Run the gate from the skill workspace: `bash scripts/completion-gate.sh <project-folder-name>`. A `BLOCKED` project must not be handed off to the Frontend Team or any other team. Update this section to `READY` only after the gate passes.
+
 ## Requirements
 
 - PHP ^8.4
@@ -16,6 +30,8 @@
     ```bash
     composer install
     ```
+
+    Wait for this step to finish before running any `php artisan` command. While Composer is still installing, the project has no `vendor/autoload.php` yet and `php artisan serve` fails with "Failed opening required .../vendor/autoload.php".
 
 2. Configure the environment:
 
@@ -36,10 +52,9 @@
 
     ```bash
     php artisan passport:keys
-    php artisan passport:client --personal --name="Personal Access Client"
     ```
 
-5. Run the seeders after the module seeders are registered:
+5. Run the seeders after the module seeders are registered. Seeding creates the Passport personal access client (`database/seeders/PassportClientSeeder.php`), which is required to issue login tokens:
 
     ```bash
     php artisan db:seed

@@ -38,9 +38,10 @@ When asked to create a new project:
 13. Configure the project according to the approved standards.
 14. Automatically create the configured MySQL database if it does not exist.
 15. Automatically run all required migrations and seeders.
-16. Generate the database documentation files `docs/ERD.md` and `docs/DATABASE_DOCUMENTATION.md` as required by the Database Documentation Requirement section.
+16. Generate the database documentation file `docs/DATABASE_DOCUMENTATION.md` as required by the Database Documentation Requirement section.
 17. Follow `references/testing.md` to implement the testing phase: prepare the isolated test environment, create the Feature and Unit Tests for the implemented modules and business logic, and run the complete test suite until all tests pass.
-18. Verify the generated project and report any issues, including verifying that both database documentation files exist and accurately represent the actual database schema, and that every task in `docs/IMPLEMENTATION_PLAN.md` is implemented, tested, and marked `Completed`.
+18. Verify the generated project and report any issues, including verifying that the database documentation file exists and accurately represents the actual database schema, and that every task in `docs/IMPLEMENTATION_PLAN.md` is implemented, tested, and marked `Completed`.
+19. Run the Project Completion Gate as the final workflow step (see the Project Completion Gate section): run `scripts/completion-gate.sh <project-folder-name>`, confirm every gate criterion passes, and report the project as `READY` only then. If anything is incomplete or failing, the project remains `BLOCKED`: list the failing criteria, and never hand it off to the Frontend Team or other teams.
 
 If an essential requirement is unclear, ask the user before making assumptions.
 
@@ -51,6 +52,7 @@ Do not start business feature implementation before the standardized foundation 
 - Use `scripts/scaffold.sh <project-folder-name> [database-name]` to perform the complete foundation setup: Laravel skeleton creation, approved template application, `.env` configuration, Composer installation, MySQL database creation, package migration publishing, migrations, Passport preparation, and conditional seeding. The script implements the command order documented in `references/authentication.md`.
 - Create `docs/IMPLEMENTATION_PLAN.md` as soon as the scaffold has created the project skeleton. The scaffold fails if the project folder already exists, so the plan cannot be written before it runs: create the `docs/` directory if it does not exist, then write the plan before creating any application files.
 - Run the scaffold script (or any long Composer command) in the background; Composer may take 15+ minutes on constrained machines.
+- Never run `php artisan serve` or any artisan command in a freshly scaffolded project while the scaffold's Composer step is still running: the skeleton has no `vendor/` directory until Composer install finishes, so artisan fails with "Failed opening required .../vendor/autoload.php". Wait for the scaffold to print `Scaffold complete` (or the Composer command to exit) before running the app or any artisan command, and tell the user to do the same.
 - While Composer resolves, only create complete, syntactically valid application files. Do not wire `routes/api1.php` to module routes until Composer has finished.
 - Never run `passport:install` on a database that already contains the oauth tables; it fails because it re-runs migrations. Use the approved Passport 13 sequence.
 - The script seeds the database only after the Roles and Permissions Seeder is registered in `DatabaseSeeder`. When seeding was skipped, run `php artisan db:seed` after implementing the module seeders.
@@ -71,6 +73,7 @@ Do not start business feature implementation before the standardized foundation 
 - If additional tasks or requirements emerge during implementation, add them to the plan and continue implementation.
 - Before completing the project, verify that all planned tasks have been implemented and tested.
 - Do not consider backend project generation complete until every task in `docs/IMPLEMENTATION_PLAN.md` is implemented, tested, and marked `Completed`.
+- The plan MUST include a final `Completion Gate Verification` task that runs the Project Completion Gate (`scripts/completion-gate.sh`); mark it `Completed` only when the project passes the gate and is `READY`.
 
 ## 4. Technology Stack
 
@@ -123,6 +126,8 @@ Controllers are stored directly inside `App\Http\Controllers\V1` and must not us
 
 Models are stored directly inside `App\Models\V1`, not in module-specific folders.
 
+Every project must have exactly one User model: `App\Models\V1\User`, installed by the scaffold from the approved template as the single source of truth for authentication, authorization, seeders, and factories. The Laravel skeleton's default `app/Models/User.php` and default `database/factories/UserFactory.php` are removed by the scaffold and must never be recreated; all references point to `App\Models\V1\User`.
+
 ### Module Rules
 
 Each module must have:
@@ -150,14 +155,16 @@ Follow `references/architecture.md` for the complete architecture rules.
 
 - Use `routes/api1.php` as the main API route file.
 - Configure the API prefix as `api/v1`.
-- Each module must have its own route file directly inside `routes/`.
-- The main API route file must require the individual module route files.
+- `routes/api1.php` must be the only skill-generated route file directly inside `routes/`.
+- Every module route file must be generated inside `routes/v1/`, including the Auth and User module route files.
+- The main API route file must require every generated `routes/v1/` route file.
+- Laravel's own `routes/web.php` and `routes/console.php` skeleton files stay unchanged; no other route file may be created directly inside `routes/`.
 - Use `Route::controller()->prefix()->group()` for module routes.
 - The module prefix must be lowercase and defined once.
 - Additional module routes must use action paths inside the existing prefix group.
 - Define static action paths (such as `/bulk-delete`) before `{uuid}` routes so the parameter cannot shadow them.
-- Do not create unnecessary route subdirectories.
-- Every project also includes a public `routes/documentation.php` route file required from `api1.php`; it is the only route group without authentication middleware (see API and Swagger Documentation Requirement).
+- Do not create route subdirectories other than `routes/v1/`; module route files sit directly inside `routes/v1/`, never in module-specific subdirectories.
+- Every project also includes a public `routes/v1/documentation.php` route file required from `api1.php`; it is the only route group without authentication middleware (see API and Swagger Documentation Requirement).
 
 ### Standard Module Endpoints
 
@@ -441,7 +448,7 @@ Follow `references/localization.md`.
 - Google Login is an optional feature.
 - Phone OTP verification is an optional feature.
 - Twilio is the default provider for phone OTP.
-- Authentication and verification flows must integrate with the User Model and users table.
+- Authentication and verification flows must integrate with the single V1 User Model (`App\Models\V1\User`) and the users table.
 - Store OTP information securely; never store OTP values in plain text.
 - Keep provider credentials in environment variables.
 
@@ -476,7 +483,7 @@ Follow `references/authentication.md` for the complete authorization implementat
 - Both documentation outputs MUST remain consistent with the actual API implementation.
 - Whenever an endpoint or its behavior changes, update both documentation outputs.
 - Do not consider backend generation complete until the API documentation has been generated and verified.
-- Every project MUST expose a public documentation endpoint by default: `GET /api/v1/documentation`, implemented by `App\Http\Controllers\V1\DocumentationController` and the `routes/documentation.php` route file (copied automatically by the scaffold).
+- Every project MUST expose a public documentation endpoint by default: `GET /api/v1/documentation`, implemented by `App\Http\Controllers\V1\DocumentationController` and the `routes/v1/documentation.php` route file (copied automatically by the scaffold).
 - The endpoint MUST require no authentication and no permission. It returns `docs/API_DOCUMENTATION.md` with `Content-Type: text/markdown`.
 - Frontend and mobile clients always receive two documentation links: the Swagger UI and the public documentation endpoint.
 - If `docs/API_DOCUMENTATION.md` has not been generated yet, the endpoint returns the standard 404 API response shape.
@@ -484,9 +491,7 @@ Follow `references/authentication.md` for the complete authorization implementat
 
 ## 20. Database Documentation Requirement
 
-- MUST generate `docs/ERD.md` for every backend project.
 - MUST generate `docs/DATABASE_DOCUMENTATION.md` for every backend project.
-- `docs/ERD.md` MUST contain a Mermaid Entity Relationship Diagram representing the actual database schema, including tables, relevant columns, primary keys, foreign keys, and relationships.
 - `docs/DATABASE_DOCUMENTATION.md` MUST provide concise documentation for every database table, including:
   - Table purpose.
   - Important columns and their descriptions.
@@ -495,8 +500,8 @@ Follow `references/authentication.md` for the complete authorization implementat
 - Documentation MUST be based on the actual implemented database schema, migrations, models, and relationships.
 - Do not document tables, columns, or relationships that do not exist in the actual implementation.
 - Keep the documentation concise and practical, focusing on helping backend developers quickly understand the database structure.
-- MUST update both files whenever database schema or relationships change.
-- Do not consider backend project generation complete until both files have been generated and verified.
+- MUST update the file whenever database schema or relationships change.
+- Do not consider backend project generation complete until the file has been generated and verified.
 
 ## 21. Laravel Configuration
 
@@ -573,6 +578,9 @@ Templates the scaffold copies automatically (do not copy them manually):
 - `templates/routes/api1.php`
 - `templates/routes/documentation.php`
 - `templates/app/Http/Controllers/V1/DocumentationController.php`
+- `templates/app/Models/V1/User.php`
+- `templates/database/factories/V1/UserFactory.php`
+- `templates/database/seeders/PassportClientSeeder.php`
 - `templates/README.md`
 
 Templates to adapt when implementing modules (not copied by the scaffold):
@@ -599,10 +607,12 @@ After creating the standardized foundation:
 - Verify the PHP and Laravel requirements.
 - Verify Composer configuration and dependency installation.
 - Verify all mandatory templates were applied.
+- Verify the project has exactly one User model and exactly one UserFactory: `app/Models/V1/User.php` and `database/factories/V1/UserFactory.php` exist; the skeleton's default `app/Models/User.php` and `database/factories/UserFactory.php` are absent; the factory namespace is `Database\Factories\V1` and it is linked to `App\Models\V1\User` so `User::factory()` resolves through it; and no reference to `App\Models\User` remains.
 - Verify `README.md` exists in the project root, was created from the approved template, and contains no unresolved placeholders.
-- Verify `docs/ERD.md` and `docs/DATABASE_DOCUMENTATION.md` exist, match the actual implemented database schema, and document no tables, columns, or relationships that do not exist.
+- Verify `docs/DATABASE_DOCUMENTATION.md` exists, matches the actual implemented database schema, and documents no tables, columns, or relationships that do not exist.
 - Verify `docs/IMPLEMENTATION_PLAN.md` exists, matches the actual implementation, and every task is implemented, tested, and marked `Completed`.
 - Verify the route configuration and API prefix.
+- Verify that `routes/api1.php` is the only skill-generated route file directly inside `routes/`, that every module route file is generated inside `routes/v1/`, and that `api1.php` requires every generated `routes/v1/` route file.
 - Verify the MySQL environment configuration.
 - Verify the approved middleware and locale configuration.
 - Verify the Helpers autoload configuration.
@@ -611,10 +621,45 @@ After creating the standardized foundation:
 - Verify the testing phase was completed following `references/testing.md`: the isolated test environment is configured, Feature Tests exist for the implemented modules, and the complete test suite passes.
 - When the project implements file uploads or stored files, verify file operations follow `references/file-storage.md`: database references match stored paths, and no files are deleted or overwritten before their related transaction commits.
 - Report any missing dependencies, environment limitations, or failed commands honestly.
+- Run the Project Completion Gate (`scripts/completion-gate.sh <project-folder-name>`) as the final verification step. The project is `READY` only when every gate criterion in the Project Completion Gate section passes; otherwise it remains `BLOCKED`.
+- Never hand off a `BLOCKED` project to the Frontend Team or any other team.
 
 Do not claim that the project or an endpoint works unless it has actually been tested.
 
-## 26. Important Restrictions
+## 26. Project Completion Gate
+
+Never consider a project created or READY just because its files and code have been generated. Generated code alone is never sufficient.
+
+Every project has exactly two possible completion states: `READY` and `BLOCKED`. The state is determined only by the gate below.
+
+### Gate Criteria
+
+A project is `READY` only when ALL of the following are true:
+
+1. All Backend Skill requirements are fully implemented.
+2. Composer and all dependencies are installed successfully.
+3. Database setup, migrations, seeders, and required configurations are completed.
+4. All routes, authentication, and integrations work correctly.
+5. Swagger and all required documentation are generated and verified.
+6. The complete required test suite passes.
+7. The application boots and runs successfully.
+
+### BLOCKED State
+
+If anything is incomplete or failing, the project MUST remain `BLOCKED`:
+
+- Never report a `BLOCKED` project as `READY` or complete.
+- Never hand off a `BLOCKED` project to the Frontend Team or any other team.
+- Report the failing gate criteria explicitly, with the actual error or missing item for each one.
+
+### Running the Gate
+
+- Run `scripts/completion-gate.sh <project-folder-name>` as the final workflow step, after all implementation, documentation, and testing work is finished. The script verifies every machine-checkable criterion (Composer installation, configuration, migrations, routes, Swagger generation, documentation files, approved structure checks, the complete test suite, and a boot and HTTP smoke test of the public documentation endpoint) and prints the verdict: exit code 0 means `READY`, any other result means `BLOCKED` with the failure list.
+- Read the failure list, fix the actual root causes, and re-run the gate until it passes. Do not weaken or skip checks to make the gate pass.
+- The script does not replace judgment: criteria 1 and 4 (full requirement coverage; routes, authentication, and integrations working correctly) and documentation accuracy under criterion 5 must be confirmed through the Verification section before reporting `READY`.
+- Report the final state explicitly as `READY` or `BLOCKED`. A project with no completed gate report is `BLOCKED` by default.
+
+## 27. Important Restrictions
 
 - Never invent business requirements.
 - Never invent architecture or additional layers.
@@ -629,4 +674,5 @@ Do not claim that the project or an endpoint works unless it has actually been t
 - Never skip mandatory templates or references.
 - Never run tests against the main project database.
 - Never delete or overwrite a stored file before its related database transaction commits.
+- Never consider a project `READY`, report it complete, or hand it off to the Frontend Team or other teams while any Project Completion Gate criterion is incomplete or failing.
 - Never modify approved standards without explicit approval.

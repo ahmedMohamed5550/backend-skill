@@ -3,8 +3,10 @@
 ## API Versioning
 - All API endpoints belong to Version 1.
 - Main routes file: `routes/api1.php`.
-- Each module has its own route file.
-- The main API routes file must require the module route files.
+- `routes/api1.php` must be the only skill-generated route file directly inside `routes/`.
+- Each module has its own route file inside `routes/v1/`, including the Auth and User modules.
+- The main API routes file must require every generated `routes/v1/` route file.
+- Do not create route subdirectories other than `routes/v1/`.
 
 ## Controllers and Services
 - Each module must have exactly one Controller and one Service.

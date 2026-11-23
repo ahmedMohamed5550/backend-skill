@@ -10,7 +10,9 @@ set -euo pipefail
 #   - Passport 13 publishes migrations instead of auto-loading them.
 #   - The telescope publish can re-copy Passport oauth migrations (deduped here).
 #   - passport:install is never used (it re-runs migrations and fails on
-#     existing oauth tables); passport:keys + passport:client --personal instead.
+#     existing oauth tables); passport:keys + the PassportClientSeeder
+#     template (registered in DatabaseSeeder) provide keys and the personal
+#     access client instead.
 #
 # Usage:
 #   bash scaffold.sh <project-folder-name> [database-name]
@@ -64,8 +66,12 @@ mkdir -p \
     "$PROJECT_PATH/app/Http/Middleware" \
     "$PROJECT_PATH/app/Http/Controllers" \
     "$PROJECT_PATH/app/Http/Controllers/V1" \
+    "$PROJECT_PATH/app/Models/V1" \
+    "$PROJECT_PATH/database/factories/V1" \
+    "$PROJECT_PATH/tests" \
     "$PROJECT_PATH/lang/en" \
-    "$PROJECT_PATH/lang/ar"
+    "$PROJECT_PATH/lang/ar" \
+    "$PROJECT_PATH/routes/v1"
 cp "$TEMPLATES_DIR/composer.json"                       "$PROJECT_PATH/composer.json"
 cp "$TEMPLATES_DIR/bootstrap/app.php"                   "$PROJECT_PATH/bootstrap/app.php"
 cp "$TEMPLATES_DIR/bootstrap/providers.php"             "$PROJECT_PATH/bootstrap/providers.php"
@@ -77,10 +83,45 @@ cp "$TEMPLATES_DIR/app/Http/Controllers/Controller.php" "$PROJECT_PATH/app/Http/
 cp "$TEMPLATES_DIR/lang/en/messages.php"                "$PROJECT_PATH/lang/en/messages.php"
 cp "$TEMPLATES_DIR/lang/ar/messages.php"                "$PROJECT_PATH/lang/ar/messages.php"
 cp "$TEMPLATES_DIR/routes/api1.php"                     "$PROJECT_PATH/routes/api1.php"
-cp "$TEMPLATES_DIR/routes/documentation.php"            "$PROJECT_PATH/routes/documentation.php"
+cp "$TEMPLATES_DIR/routes/documentation.php"            "$PROJECT_PATH/routes/v1/documentation.php"
 cp "$TEMPLATES_DIR/app/Http/Controllers/V1/DocumentationController.php" "$PROJECT_PATH/app/Http/Controllers/V1/DocumentationController.php"
+cp "$TEMPLATES_DIR/tests/TestCase.php"                  "$PROJECT_PATH/tests/TestCase.php"
+cp "$TEMPLATES_DIR/database/factories/V1/UserFactory.php" "$PROJECT_PATH/database/factories/V1/UserFactory.php"
+cp "$TEMPLATES_DIR/database/seeders/PassportClientSeeder.php" "$PROJECT_PATH/database/seeders/PassportClientSeeder.php"
 cp "$TEMPLATES_DIR/README.md"                           "$PROJECT_PATH/README.md"
 cp "$PROJECT_PATH/.env.example" "$PROJECT_PATH/.env"
+
+# Single User model standard: App\Models\V1\User is the only User model
+# (see references/models.md and references/architecture.md). Remove the
+# Laravel skeleton's default User model and its default UserFactory, install
+# the approved V1 User model template, and repoint the skeleton's remaining
+# `use App\Models\User;` imports (config/auth.php users provider and
+# DatabaseSeeder.php) at the V1 model; `'model' => env('AUTH_MODEL',
+# User::class)` keeps resolving through the changed import.
+rm -f "$PROJECT_PATH/app/Models/User.php"
+rm -f "$PROJECT_PATH/database/factories/UserFactory.php"
+cp "$TEMPLATES_DIR/app/Models/V1/User.php" "$PROJECT_PATH/app/Models/V1/User.php"
+sed -i 's|^use App\\Models\\User;$|use App\\Models\\V1\\User;|' \
+    "$PROJECT_PATH/config/auth.php"
+sed -i 's|^use App\\Models\\User;$|use App\\Models\\V1\\User;|' \
+    "$PROJECT_PATH/database/seeders/DatabaseSeeder.php"
+# Fail loudly instead of scaffolding a project whose skeleton files kept
+# referencing the removed default model (guards against skeleton changes).
+grep -q '^use App\\Models\\V1\\User;' "$PROJECT_PATH/config/auth.php" || {
+    echo "ERROR: config/auth.php users provider does not reference App\\Models\\V1\\User." >&2
+    exit 1
+}
+grep -q '^use App\\Models\\V1\\User;' "$PROJECT_PATH/database/seeders/DatabaseSeeder.php" || {
+    echo "ERROR: DatabaseSeeder.php does not reference App\\Models\\V1\\User." >&2
+    exit 1
+}
+grep -rEn 'App\\Models\\User(;|::)' \
+    "$PROJECT_PATH/app" "$PROJECT_PATH/config" "$PROJECT_PATH/database" \
+    "$PROJECT_PATH/bootstrap" "$PROJECT_PATH/routes" "$PROJECT_PATH/tests" \
+    >/dev/null 2>&1 && {
+    echo "ERROR: a reference to the removed default App\\Models\\User remains after scaffold transformation." >&2
+    exit 1
+}
 
 echo "==> [3/9] Configuring .env for MySQL"
 # Match both uncommented (Laravel 13 skeleton ships DB_CONNECTION=sqlite live)
@@ -102,6 +143,9 @@ printf '\nL5_SWAGGER_CONST_HOST="%s"\nL5_SWAGGER_GENERATE_ALWAYS=true\n' "$APP_U
 sed -i "s/{{PROJECT_NAME}}/$PROJECT_NAME/g; s/{{DB_NAME}}/$DB_NAME/g" "$PROJECT_PATH/README.md"
 
 echo "==> [4/9] Installing Composer dependencies (the long step)"
+echo "    NOTE: vendor/autoload.php does not exist until this step finishes."
+echo "    Do NOT run artisan commands (e.g. 'php artisan serve') before this script prints 'Scaffold complete':"
+echo "    artisan fails with 'Failed opening required vendor/autoload.php' while Composer is still installing."
 (cd "$PROJECT_PATH" && composer install --no-interaction --no-progress)
 
 echo "==> [5/9] Creating MySQL database if it does not exist"
@@ -142,7 +186,10 @@ sed -i "s/^\( *\)\\\$table->bigIncrements('id');\(.*\)$/\1\$table->bigIncrements
 echo "==> [8/9] Running migrations and preparing Passport"
 (cd "$PROJECT_PATH" && php artisan migrate --no-interaction --force)
 (cd "$PROJECT_PATH" && php artisan passport:keys --no-interaction)
-(cd "$PROJECT_PATH" && php artisan passport:client --personal --name="Personal Access Client" --no-interaction)
+# No `passport:client --personal` here: the PassportClientSeeder template
+# (registered in DatabaseSeeder by the module seeder step) is the single
+# authoritative creator of the personal access client, in the main database
+# and in the test database alike.
 
 echo "==> [9/9] Seeding (only once the Roles and Permissions Seeder is registered)"
 if grep -q "RolesAndPermissionsSeeder" "$PROJECT_PATH/database/seeders/DatabaseSeeder.php"; then
@@ -153,3 +200,6 @@ else
 fi
 
 echo "==> Scaffold complete: $PROJECT_PATH (database: $DB_NAME)"
+echo "    Completion gate: this project is BLOCKED until"
+echo "    'bash scripts/completion-gate.sh $PROJECT_NAME' passes (SKILL.md, Project Completion Gate)."
+echo "    A BLOCKED project must not be handed off to the Frontend Team or any other team."
