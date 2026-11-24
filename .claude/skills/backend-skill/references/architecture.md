@@ -115,6 +115,7 @@ $categories = $this->CategoryService->index();
   - `categories-delete`
 - Every Controller must register the appropriate permission middleware in its constructor, mapping permissions to their corresponding methods using the `only` option.
 - Spatie's `role`, `permission`, and `role_or_permission` middleware aliases are registered by the approved `bootstrap/app.php` template. Register permission middleware using the alias form: `'permission:{permission-name}'` (equivalently `PermissionMiddleware::class.':{permission-name}'`).
+- Authentication middleware (`auth:api`) is applied at the module route group level in the module's route file (`Route::middleware('auth:api')->controller(...)->prefix(...)->group(...)`), never with `$this->middleware('auth:api')` inside a Controller constructor. Controllers register only their per-action permission middleware (see references/authentication.md, Authentication Route Middleware).
 - A Controller action must not be left without authorization middleware unless it is explicitly defined as a public endpoint.
 - Public authentication endpoints, such as login and registration, must remain accessible without authenticated permissions.
 - Generate and register permissions for all created module actions.
@@ -151,7 +152,7 @@ $categories = $this->CategoryService->index();
 Some packages own their own database tables and Models (for example, Spatie Laravel Permission's `roles`, `permissions`, `model_has_permissions`, `model_has_roles`, and `role_has_permissions` tables). Those tables must still follow the skill's standard columns.
 
 - When a package table must carry a standard column such as the unique `uuid`, extend the package Model into `App\Models\V1\{Model}` and add the standard `boot()` UUID hook there. The extended Model must inherit all package behavior.
-- Point the package configuration at the extended Models — for example, `config/permission.php` `models.role` and `models.permission` must reference `App\Models\V1\Role` and `App\Models\V1\Permission`.
+- Point the package configuration at the extended Models — for example, `config/permission.php` `models.role` and `models.permission` must reference `App\Models\V1\Role` and `App\Models\V1\Permission`. The scaffold does this automatically: it installs both models from the approved templates (`templates/app/Models/V1/Role.php` and `templates/app/Models/V1/Permission.php`) and rewrites the published `config/permission.php` imports through `scripts/rewrite-v1-imports.php`. Never recreate these models or revert the configuration to the vendor models.
 - Publish the package migrations and add the standard columns (for example, `$table->uuid('uuid')->unique()`) to the published migration.
 - Never modify vendor package internals to achieve this.
 - All project code — including seeders, controllers, and services — MUST import the extended `App\Models\V1` Models, never the vendor Model class. Importing the vendor Model silently skips the UUID hook and fails on insert with "Field 'uuid' doesn't have a default value".

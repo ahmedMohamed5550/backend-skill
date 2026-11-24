@@ -5,6 +5,7 @@
 - Namespace: `App\Models\V1`.
 - Do not create module-specific subdirectories for Models.
 - The User model is the single `app/Models/V1/User.php` (`App\Models\V1\User`), installed by the scaffold from the approved `templates/app/Models/V1/User.php` template with the UUID hook, Passport `HasApiTokens`, and Spatie `HasRoles`. It is the only User model: the scaffold removes the Laravel skeleton's default `app/Models/User.php` together with its default `database/factories/UserFactory.php`, and authentication, authorization, configs, seeders, and factories must never reference or recreate `App\Models\User`.
+- The scaffold also installs the extended Spatie models `app/Models/V1/Role.php` (`App\Models\V1\Role`) and `app/Models/V1/Permission.php` (`App\Models\V1\Permission`) from the approved templates; each extends its vendor model and adds the standard UUID hook, and `config/permission.php` references them. Never recreate them or import the vendor model classes directly (see references/architecture.md, Package Models Requiring Standard Columns).
 
 ## UUID
 - Every Model must have a UUID column in its corresponding database table.

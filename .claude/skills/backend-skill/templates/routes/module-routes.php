@@ -11,12 +11,18 @@
 |
 | require __DIR__ . '/v1/{{module}}.php';
 |
+| Authentication middleware is applied here, at the module route group
+| level — never inside the Controller constructor. The public exceptions
+| (documentation.php, and the auth module's login route) stay outside
+| auth:api groups in their own route files.
+|
 */
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V1\{{Module}}Controller;
 
-Route::controller({{Module}}Controller::class)
+Route::middleware('auth:api')
+    ->controller({{Module}}Controller::class)
     ->prefix('{{module}}')
     ->group(function () {
         // Static action paths must be defined BEFORE /{uuid} routes,

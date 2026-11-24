@@ -13,6 +13,14 @@ set -euo pipefail
 #     existing oauth tables); passport:keys + the PassportClientSeeder
 #     template (registered in DatabaseSeeder) provide keys and the personal
 #     access client instead.
+#   - Authentication defaults come from templates/config/auth.php: the
+#     default guard is `api` and the `api` guard uses the `passport` driver
+#     with the `users` provider (references/authentication.md).
+#   - Authorization config comes from templates/app/Models/V1/{Role,
+#     Permission}.php plus rewrite-v1-imports.php pointing
+#     config/permission.php models.role / models.permission at
+#     App\Models\V1\Role / App\Models\V1\Permission
+#     (references/architecture.md, Package Models Requiring Standard Columns).
 #
 # Usage:
 #   bash scaffold.sh <project-folder-name> [database-name]
@@ -76,6 +84,7 @@ cp "$TEMPLATES_DIR/composer.json"                       "$PROJECT_PATH/composer.
 cp "$TEMPLATES_DIR/bootstrap/app.php"                   "$PROJECT_PATH/bootstrap/app.php"
 cp "$TEMPLATES_DIR/bootstrap/providers.php"             "$PROJECT_PATH/bootstrap/providers.php"
 cp "$TEMPLATES_DIR/config/app.php"                      "$PROJECT_PATH/config/app.php"
+cp "$TEMPLATES_DIR/config/auth.php"                     "$PROJECT_PATH/config/auth.php"
 cp "$TEMPLATES_DIR/app/Helpers/Helpers.php"             "$PROJECT_PATH/app/Helpers/Helpers.php"
 cp "$TEMPLATES_DIR/app/Traits/ApiResponseTrait.php"     "$PROJECT_PATH/app/Traits/ApiResponseTrait.php"
 cp "$TEMPLATES_DIR/app/Http/Middleware/SetLocale.php"   "$PROJECT_PATH/app/Http/Middleware/SetLocale.php"
@@ -93,29 +102,38 @@ cp "$PROJECT_PATH/.env.example" "$PROJECT_PATH/.env"
 
 # Single User model standard: App\Models\V1\User is the only User model
 # (see references/models.md and references/architecture.md). Remove the
-# Laravel skeleton's default User model and its default UserFactory, install
-# the approved V1 User model template, and repoint the skeleton's remaining
-# `use App\Models\User;` imports (config/auth.php users provider and
-# DatabaseSeeder.php) at the V1 model; `'model' => env('AUTH_MODEL',
-# User::class)` keeps resolving through the changed import.
+# Laravel skeleton's default User model and its default UserFactory, and
+# install the approved V1 model templates. config/auth.php comes from the
+# approved template (api default guard, passport api guard, V1 User import).
 rm -f "$PROJECT_PATH/app/Models/User.php"
 rm -f "$PROJECT_PATH/database/factories/UserFactory.php"
 cp "$TEMPLATES_DIR/app/Models/V1/User.php" "$PROJECT_PATH/app/Models/V1/User.php"
-sed -i 's|^use App\\Models\\User;$|use App\\Models\\V1\\User;|' \
-    "$PROJECT_PATH/config/auth.php"
-sed -i 's|^use App\\Models\\User;$|use App\\Models\\V1\\User;|' \
-    "$PROJECT_PATH/database/seeders/DatabaseSeeder.php"
-# Fail loudly instead of scaffolding a project whose skeleton files kept
-# referencing the removed default model (guards against skeleton changes).
-grep -q '^use App\\Models\\V1\\User;' "$PROJECT_PATH/config/auth.php" || {
+cp "$TEMPLATES_DIR/app/Models/V1/Role.php" "$PROJECT_PATH/app/Models/V1/Role.php"
+cp "$TEMPLATES_DIR/app/Models/V1/Permission.php" "$PROJECT_PATH/app/Models/V1/Permission.php"
+# Repoint the skeleton's DatabaseSeeder import at the V1 User model, and (once
+# Spatie's config is published) its permission config at the V1 Role and
+# Permission models. Idempotent; verifies and fails loudly on any mismatch.
+# (Done in PHP: the backslash-rich sed equivalents are shell-escape fragile.)
+php "$SKILL_DIR/scripts/rewrite-v1-imports.php" "$PROJECT_PATH"
+# Fail loudly instead of scaffolding a project whose configuration deviates
+# from the approved templates (guards against template or skeleton changes).
+grep -q '^use App.Models.V1.User;' "$PROJECT_PATH/config/auth.php" || {
     echo "ERROR: config/auth.php users provider does not reference App\\Models\\V1\\User." >&2
     exit 1
 }
-grep -q '^use App\\Models\\V1\\User;' "$PROJECT_PATH/database/seeders/DatabaseSeeder.php" || {
+grep -qF "env('AUTH_GUARD', 'api')" "$PROJECT_PATH/config/auth.php" || {
+    echo "ERROR: config/auth.php default guard is not 'api' (references/authentication.md)." >&2
+    exit 1
+}
+grep -qF "'driver' => 'passport'" "$PROJECT_PATH/config/auth.php" || {
+    echo "ERROR: config/auth.php has no 'passport' driver api guard (references/authentication.md)." >&2
+    exit 1
+}
+grep -q '^use App.Models.V1.User;' "$PROJECT_PATH/database/seeders/DatabaseSeeder.php" || {
     echo "ERROR: DatabaseSeeder.php does not reference App\\Models\\V1\\User." >&2
     exit 1
 }
-grep -rEn 'App\\Models\\User(;|::)' \
+grep -rEn 'App.Models.User(;|::)' \
     "$PROJECT_PATH/app" "$PROJECT_PATH/config" "$PROJECT_PATH/database" \
     "$PROJECT_PATH/bootstrap" "$PROJECT_PATH/routes" "$PROJECT_PATH/tests" \
     >/dev/null 2>&1 && {
@@ -182,6 +200,21 @@ PERM_MIGRATION="$(ls "$PROJECT_PATH/database/migrations" | grep '_create_permiss
 test -n "$PERM_MIGRATION" || { echo "ERROR: Spatie permission tables migration not found after vendor:publish." >&2; exit 1; }
 sed -i "s/^\( *\)\\\$table->bigIncrements('id');\(.*\)$/\1\$table->bigIncrements('id');\2\n\1\$table->uuid('uuid')->unique();/" \
     "$PROJECT_PATH/database/migrations/$PERM_MIGRATION"
+
+# Point Spatie's published config at the V1 Role and Permission models
+# (references/architecture.md). The models themselves were installed from
+# templates in step [2/9], so the classes exist before anything boots.
+php "$SKILL_DIR/scripts/rewrite-v1-imports.php" "$PROJECT_PATH"
+grep -q '^use App.Models.V1.Role;' "$PROJECT_PATH/config/permission.php" \
+    && grep -q '^use App.Models.V1.Permission;' "$PROJECT_PATH/config/permission.php" || {
+    echo "ERROR: config/permission.php does not reference the App\\Models\\V1\\Role and App\\Models\\V1\\Permission models." >&2
+    exit 1
+}
+grep -qF "'role' => Role::class," "$PROJECT_PATH/config/permission.php" \
+    && grep -qF "'permission' => Permission::class," "$PROJECT_PATH/config/permission.php" || {
+    echo "ERROR: config/permission.php models.role / models.permission do not resolve to the imported V1 models." >&2
+    exit 1
+}
 
 echo "==> [8/9] Running migrations and preparing Passport"
 (cd "$PROJECT_PATH" && php artisan migrate --no-interaction --force)

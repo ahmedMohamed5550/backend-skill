@@ -141,6 +141,12 @@ Apply sorting using `orderBy($sortBy, $sortDirection)` and pagination using `pag
 - Do not use camelCase, PascalCase, underscores, or spaces in route paths.
 - Keep route naming consistent across all modules and API clients.
 
+## Authentication Middleware Placement
+
+- Apply authentication middleware at the module route group level in the module's route file: `Route::middleware('auth:api')->controller(...)->prefix(...)->group(...)`.
+- Never apply `$this->middleware('auth:api')` inside a Controller constructor; Controllers register only their per-action permission middleware.
+- Public endpoints are the only routes outside `auth:api` groups: the documentation group and the auth module's `login` route (see references/authentication.md, Authentication Route Middleware).
+
 ## Module Actions
 
 - Every module must include the standard CRUD operations by default.

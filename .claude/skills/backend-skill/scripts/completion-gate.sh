@@ -31,7 +31,10 @@ set -uo pipefail
 #   CHECK 05 swagger      -> criterion 5 (OpenAPI specification generates)
 #   CHECK 06 docs files   -> criterion 5 (required documentation files exist)
 #   CHECK 07 standards    -> criterion 1 (machine-checkable skill requirements:
-#                            single V1 User model/factory, README without
+#                            single V1 User model/factory, approved auth
+#                            config (api guard / passport driver), approved
+#                            permission config (V1 Spatie models), route-level
+#                            auth:api middleware placement, README without
 #                            unresolved placeholders)
 #   CHECK 08 tests        -> criterion 6 (complete required test suite passes)
 #   CHECK 09 boot         -> criterion 7 (application boots and serves
@@ -174,11 +177,69 @@ if [ -f "$PROJECT_PATH/database/factories/UserFactory.php" ]; then
     fail "CHECK 07" "database/factories/UserFactory.php exists; the default UserFactory must never be recreated."
     STANDARDS_OK=0
 fi
+# Approved authentication configuration (references/authentication.md):
+# default guard api, and a passport-driver api guard on the users provider.
+AUTH_CONFIG="$PROJECT_PATH/config/auth.php"
+if [ ! -f "$AUTH_CONFIG" ]; then
+    fail "CHECK 07" "config/auth.php is missing."
+    STANDARDS_OK=0
+else
+    grep -qF "env('AUTH_GUARD', 'api')" "$AUTH_CONFIG" || {
+        fail "CHECK 07" "config/auth.php default guard is not 'api'."
+        STANDARDS_OK=0
+    }
+    grep -qF "'driver' => 'passport'" "$AUTH_CONFIG" || {
+        fail "CHECK 07" "config/auth.php has no passport-driver api guard."
+        STANDARDS_OK=0
+    }
+    grep -q '^use App.Models.V1.User;' "$AUTH_CONFIG" || {
+        fail "CHECK 07" "config/auth.php users provider does not reference App\\Models\\V1\\User."
+        STANDARDS_OK=0
+    }
+fi
+# Approved authorization configuration (references/architecture.md, Package
+# Models Requiring Standard Columns): Spatie pointed at the V1 models.
+PERMISSION_CONFIG="$PROJECT_PATH/config/permission.php"
+for V1_PACKAGE_MODEL in Role Permission; do
+    if [ ! -f "$PROJECT_PATH/app/Models/V1/$V1_PACKAGE_MODEL.php" ]; then
+        fail "CHECK 07" "app/Models/V1/$V1_PACKAGE_MODEL.php is missing; the extended Spatie model standard is violated."
+        STANDARDS_OK=0
+    fi
+done
+if [ ! -f "$PERMISSION_CONFIG" ]; then
+    fail "CHECK 07" "config/permission.php is missing; run the Spatie vendor:publish step."
+    STANDARDS_OK=0
+else
+    grep -q '^use App.Models.V1.Role;' "$PERMISSION_CONFIG" \
+        && grep -q '^use App.Models.V1.Permission;' "$PERMISSION_CONFIG" || {
+        fail "CHECK 07" "config/permission.php does not import App\\Models\\V1\\Role and App\\Models\\V1\\Permission."
+        STANDARDS_OK=0
+    }
+    grep -qF "'role' => Role::class," "$PERMISSION_CONFIG" \
+        && grep -qF "'permission' => Permission::class," "$PERMISSION_CONFIG" || {
+        fail "CHECK 07" "config/permission.php models.role / models.permission do not resolve to the V1 models."
+        STANDARDS_OK=0
+    }
+fi
+# Authentication middleware placement (references/authentication.md,
+# Authentication Route Middleware): applied at the module route group level,
+# never inside a Controller constructor.
+if grep -rF "middleware('auth:api'" "$PROJECT_PATH/app/Http/Controllers" >/dev/null 2>&1; then
+    fail "CHECK 07" "a Controller applies auth:api middleware in its constructor; authentication middleware belongs on the module route group."
+    STANDARDS_OK=0
+fi
+for ROUTE_FILE in "$PROJECT_PATH/routes/v1/"*.php; do
+    [ "$(basename "$ROUTE_FILE")" = "documentation.php" ] && continue
+    if ! grep -qF 'auth:api' "$ROUTE_FILE"; then
+        fail "CHECK 07" "module route file ${ROUTE_FILE#$PROJECT_PATH/} does not apply auth:api middleware on its route group."
+        STANDARDS_OK=0
+    fi
+done
 if grep -q '{{' "$PROJECT_PATH/README.md" 2>/dev/null; then
     fail "CHECK 07" "README.md still contains unresolved {{...}} placeholders."
     STANDARDS_OK=0
 fi
-[ "$STANDARDS_OK" -eq 1 ] && pass "single V1 User model/factory in place, README has no unresolved placeholders"
+[ "$STANDARDS_OK" -eq 1 ] && pass "single V1 User model/factory in place, auth and permission configs approved, route-level auth:api placement, README has no unresolved placeholders"
 
 echo "---- CHECK 08 tests: complete required test suite"
 # Sequential run (references/testing.md 14): tests share one MySQL test

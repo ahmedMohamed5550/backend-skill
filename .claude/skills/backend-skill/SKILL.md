@@ -49,7 +49,7 @@ Do not start business feature implementation before the standardized foundation 
 
 ### Execution Guidance
 
-- Use `scripts/scaffold.sh <project-folder-name> [database-name]` to perform the complete foundation setup: Laravel skeleton creation, approved template application, `.env` configuration, Composer installation, MySQL database creation, package migration publishing, migrations, Passport preparation, and conditional seeding. The script implements the command order documented in `references/authentication.md`.
+- Use `scripts/scaffold.sh <project-folder-name> [database-name]` to perform the complete foundation setup: Laravel skeleton creation, approved template application, authentication and authorization configuration, `.env` configuration, Composer installation, MySQL database creation, package migration publishing, migrations, Passport preparation, and conditional seeding. The script implements the command order documented in `references/authentication.md`.
 - Create `docs/IMPLEMENTATION_PLAN.md` as soon as the scaffold has created the project skeleton. The scaffold fails if the project folder already exists, so the plan cannot be written before it runs: create the `docs/` directory if it does not exist, then write the plan before creating any application files.
 - Run the scaffold script (or any long Composer command) in the background; Composer may take 15+ minutes on constrained machines.
 - Never run `php artisan serve` or any artisan command in a freshly scaffolded project while the scaffold's Composer step is still running: the skeleton has no `vendor/` directory until Composer install finishes, so artisan fails with "Failed opening required .../vendor/autoload.php". Wait for the scaffold to print `Scaffold complete` (or the Composer command to exit) before running the app or any artisan command, and tell the user to do the same.
@@ -159,7 +159,8 @@ Follow `references/architecture.md` for the complete architecture rules.
 - Every module route file must be generated inside `routes/v1/`, including the Auth and User module route files.
 - The main API route file must require every generated `routes/v1/` route file.
 - Laravel's own `routes/web.php` and `routes/console.php` skeleton files stay unchanged; no other route file may be created directly inside `routes/`.
-- Use `Route::controller()->prefix()->group()` for module routes.
+- Use `Route::middleware('auth:api')->controller()->prefix()->group()` for protected module routes: authentication middleware is applied at the module route group level in the module's route file, never inside a Controller constructor. Controllers keep registering their per-action permission middleware.
+- Public endpoints are the only routes outside `auth:api` groups: the documentation group and the auth module's `login` route (`logout` and `me` stay inside the auth module's `auth:api` group).
 - The module prefix must be lowercase and defined once.
 - Additional module routes must use action paths inside the existing prefix group.
 - Define static action paths (such as `/bulk-delete`) before `{uuid}` routes so the parameter cannot shadow them.
@@ -444,6 +445,7 @@ Follow `references/localization.md`.
 ## 18. Authentication
 
 - Laravel Passport is the default API authentication system.
+- Apply the Passport authentication middleware at the route level (`auth:api` on the module route group); never inside Controller constructors (see Routes and `references/authentication.md`, Authentication Route Middleware).
 - Prepare the standard authentication foundation following the Passport 13 setup sequence in `references/authentication.md`; never run `passport:install` on a database that already contains the oauth tables.
 - Google Login is an optional feature.
 - Phone OTP verification is an optional feature.
@@ -459,6 +461,8 @@ Follow `references/authentication.md`.
 ### Mandatory Authorization
 
 Every project MUST use Spatie Laravel Permission for roles and permissions.
+
+The scaffold installs the extended `App\Models\V1\Role` and `App\Models\V1\Permission` models from the approved templates and points the published `config/permission.php` at them. Never recreate these models or point the configuration back at the vendor models; use the V1 models for all role and permission operations.
 
 Every protected Controller action must have its required permission middleware.
 
@@ -510,6 +514,8 @@ Use the approved Laravel configuration templates.
 - Use the approved `bootstrap/app.php` template.
 - Use the approved `bootstrap/providers.php` template.
 - Use the approved `config/app.php` template.
+- Use the approved `config/auth.php` template. It sets the default authentication guard to `api` and defines the `api` guard with the `passport` driver on the `users` provider; the scaffold installs it over the Laravel skeleton file.
+- The scaffold points the Spatie-published `config/permission.php` at the extended `App\Models\V1\Permission` and `App\Models\V1\Role` models (see Mandatory Authorization) and installs both models from the approved templates. Do not change these references to the vendor models.
 - Preserve Laravel's default required files unless a specific approved template replaces them.
 - Do not add custom Service Providers or aliases unless explicitly approved.
 - Register the approved API middleware and exception configuration through the Laravel 13 bootstrap configuration.
@@ -569,6 +575,7 @@ Templates the scaffold copies automatically (do not copy them manually):
 - `templates/bootstrap/app.php`
 - `templates/bootstrap/providers.php`
 - `templates/config/app.php`
+- `templates/config/auth.php`
 - `templates/app/Helpers/Helpers.php`
 - `templates/app/Traits/ApiResponseTrait.php`
 - `templates/app/Http/Middleware/SetLocale.php`
@@ -579,6 +586,8 @@ Templates the scaffold copies automatically (do not copy them manually):
 - `templates/routes/documentation.php`
 - `templates/app/Http/Controllers/V1/DocumentationController.php`
 - `templates/app/Models/V1/User.php`
+- `templates/app/Models/V1/Role.php`
+- `templates/app/Models/V1/Permission.php`
 - `templates/database/factories/V1/UserFactory.php`
 - `templates/database/seeders/PassportClientSeeder.php`
 - `templates/README.md`
@@ -612,8 +621,11 @@ After creating the standardized foundation:
 - Verify `docs/DATABASE_DOCUMENTATION.md` exists, matches the actual implemented database schema, and documents no tables, columns, or relationships that do not exist.
 - Verify `docs/IMPLEMENTATION_PLAN.md` exists, matches the actual implementation, and every task is implemented, tested, and marked `Completed`.
 - Verify the route configuration and API prefix.
+- Verify the authentication middleware placement: every protected module route group applies `auth:api` at the route level in its `routes/v1/` file, and no Controller constructor applies `$this->middleware('auth:api')`; per-action permission middleware remains in the Controllers.
 - Verify that `routes/api1.php` is the only skill-generated route file directly inside `routes/`, that every module route file is generated inside `routes/v1/`, and that `api1.php` requires every generated `routes/v1/` route file.
 - Verify the MySQL environment configuration.
+- Verify the authentication configuration: `config/auth.php` sets the default guard to `api` and defines the `api` guard with the `passport` driver and the `users` provider.
+- Verify the authorization configuration: `config/permission.php` imports and references `App\Models\V1\Role` and `App\Models\V1\Permission`, and both model files exist in `app/Models/V1`.
 - Verify the approved middleware and locale configuration.
 - Verify the Helpers autoload configuration.
 - Verify that the approved references and architecture have been followed.
@@ -664,6 +676,7 @@ If anything is incomplete or failing, the project MUST remain `BLOCKED`:
 - Never invent business requirements.
 - Never invent architecture or additional layers.
 - Never create extra Controllers or Services without approval.
+- Never apply authentication middleware (`auth:api`) inside a Controller constructor; apply it at the module route group level in the module's route file.
 - Never use SoftDeletes.
 - Never use database ENUM columns.
 - Never use a different API response format.
