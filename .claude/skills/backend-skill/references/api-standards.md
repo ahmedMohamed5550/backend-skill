@@ -28,6 +28,7 @@
 - Use the List Resource for collection/list responses.
 - Use the Show Resource for individual record responses.
 - Do not create additional Resources unless explicitly approved.
+- Approved exceptions: the Documentation module (no Service, no Resources) and the Auth module (no Resources; its register, login, logout, me, password reset, and email verification endpoints return token lifecycle payloads, the user profile, and lifecycle status messages — see references/authentication.md, Token Lifecycle).
 
 ## API Response Structure
 All API responses must use the approved `ApiResponseTrait` method `apiResponse()`.
@@ -52,6 +53,7 @@ The response structure must be:
 - Error responses must use the same response structure.
 - Validation errors must use the same response structure.
 - Exceptions must use the same response structure.
+- Rate-limit rejections (HTTP 429) must use the same response structure and keep the throttle headers (see Rate Limiting).
 - Configure centralized exception and validation handling so responses follow this format even when an exception occurs before reaching a Controller.
 - Do not return Laravel's default validation or exception JSON structure.
 
@@ -141,11 +143,38 @@ Apply sorting using `orderBy($sortBy, $sortDirection)` and pagination using `pag
 - Do not use camelCase, PascalCase, underscores, or spaces in route paths.
 - Keep route naming consistent across all modules and API clients.
 
+## Rate Limiting
+
+Every generated project ships with the approved Laravel-native rate limiters. They are defined in the approved `AppServiceProvider` template, configured through `config/rate_limiting.php` (installed by the scaffold), and enabled through the approved `bootstrap/app.php` template. Do not remove them, weaken them, or add alternative throttling implementations.
+
+| Limiter | Applied by | Limits | Key |
+|---|---|---|---|
+| `api` | `$middleware->throttleApi()` in `bootstrap/app.php`, on every `/api/v1` route | `api_per_minute` (default 60) per minute | authenticated user id, or the client IP for guests |
+| `auth` | `throttle:auth` middleware on `POST /api/v1/auth/login` and `POST /api/v1/auth/register` | `auth_per_minute` (default 5) per minute and `auth_per_hour` (default 30) per hour | two independent buckets — one per normalized (trimmed, lowercased) email and one per IP; every limit must pass |
+| `password_reset` | `throttle:password_reset` middleware on `POST /api/v1/auth/forgot-password` and `POST /api/v1/auth/reset-password` | `password_reset_per_minute` (default 5) per minute and `password_reset_per_hour` (default 30) per hour | two independent buckets — one per normalized email and one per IP; every limit must pass |
+| `email_resend` | `throttle:email_resend` middleware on `POST /api/v1/auth/email/resend` | `email_resend_per_minute` (default 6) per minute and `email_resend_per_hour` (default 30) per hour | per authenticated user id (client IP fallback before authentication resolves) |
+| Passport `throttle` | the `POST /oauth/token` registration in `AppServiceProvider::boot()` | 60 requests per minute (Laravel's built-in default, kept exactly as Passport registers it) | route domain + IP |
+
+Rules:
+
+- The `api` limiter is the baseline for every Version 1 endpoint. Stricter, business-specific limiters may be added for additional sensitive endpoints as approved features require them.
+- The `auth` limiter counts every login and registration attempt, successful or not, because it runs before the Controller. The independent per-email bucket stops one account being attacked from many IPs; the independent per-IP bucket stops many accounts being attacked from one IP. Email keys are normalized (trimmed and lowercased) so case rotation cannot bypass the bucket.
+- The `password_reset` limiter protects the password reset lifecycle with the same two-bucket pattern as `auth`; it is installed by the scaffold (see references/authentication.md, Password Reset).
+- The `email_resend` limiter is keyed per user id — not per email string or IP — because resending is an authenticated action for a known account (see references/authentication.md, Email Verification).
+- The future limiters for the optional OTP verification feature remain prepared as inert config keys in `config/rate_limiting.php` (`otp_send_*`, `otp_verify_*`). Do not attach them to any route until that feature is implemented and approved.
+- Limit values are environment-overridable per project through the `RATE_LIMIT_*` variables the scaffold writes into `.env`. Changing the approved defaults requires user approval.
+- Rate-limit counters live in the cache. Production deployments with multiple servers or workers must run `CACHE_STORE=redis` (predis is an approved dependency) so the counters are shared; single-store caches keep per-store counters.
+
+### 429 responses
+
+- Exceeding a limiter throws `ThrottleRequestsException`. The central exception handler renders the approved envelope — `{message, status_code: 429, data: []}` with the localized `messages.rate_limited` message (`en` and `ar`) — and keeps the `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers so clients know when to retry. Never drop these headers.
+- `/oauth/token` sits outside the `api/v1` prefix and keeps the OAuth wire format for grant errors; its 429 responses follow the same envelope and header behavior through the central handler (`bootstrap/app.php` renders `oauth/*` exceptions as JSON).
+
 ## Authentication Middleware Placement
 
 - Apply authentication middleware at the module route group level in the module's route file: `Route::middleware('auth:api')->controller(...)->prefix(...)->group(...)`.
 - Never apply `$this->middleware('auth:api')` inside a Controller constructor; Controllers register only their per-action permission middleware.
-- Public endpoints are the only routes outside `auth:api` groups: the documentation group and the auth module's `login` route (see references/authentication.md, Authentication Route Middleware).
+- Public endpoints are the only routes outside `auth:api` groups: the documentation group and the auth module's `register`, `login`, `forgot-password`, `reset-password`, and signed `email/verify/{uuid}/{hash}` routes (see references/authentication.md, Authentication Route Middleware).
 
 ## Module Actions
 

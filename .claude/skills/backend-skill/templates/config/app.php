@@ -9,6 +9,14 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // Base URL of the frontend consuming this API. The native password
+    // reset email builds its link from it (ResetPassword::createUrlUsing in
+    // the AppServiceProvider — references/authentication.md, Password
+    // Reset): the emailed link lands on the frontend reset-password page,
+    // which completes the flow by calling POST /api/v1/auth/reset-password.
+    // Defaults to the API URL until a separate frontend exists.
+    'frontend_url' => env('FRONTEND_URL', env('APP_URL', 'http://localhost')),
+
     'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     'locale' => env('APP_LOCALE', 'en'),

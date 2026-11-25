@@ -3,6 +3,7 @@
 namespace App\Models\V1;
 
 use Database\Factories\V1\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -19,8 +20,15 @@ use Spatie\Permission\Traits\HasRoles;
  * (Passport), authorization (Spatie), config/auth.php, seeders, and factories
  * all reference this V1 model (see references/models.md and
  * references/architecture.md).
+ *
+ * The base Illuminate\Foundation\Auth\User class already carries the
+ * MustVerifyEmail and CanResetPassword traits; implementing the
+ * MustVerifyEmail contract enables Laravel's native email verification flow
+ * (sendEmailVerificationNotification, hasVerifiedEmail, markEmailAsVerified),
+ * and the CanResetPassword machinery drives the native password reset
+ * (references/authentication.md, Email Verification and Password Reset).
  */
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, HasRoles;

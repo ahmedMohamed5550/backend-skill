@@ -27,7 +27,6 @@ Business requirements may determine which packages are actually used or removed 
 - `guzzlehttp/guzzle`: `^7.0.1`
 - `kreait/laravel-firebase`: `^7.2`
 - `laravel/cashier`: `^15.6`
-- `laravel/fortify`: `^1.25`
 - `laravel/nightwatch`: `^1.30`
 - `laravel/passport`: `^13`
 - `laravel/pulse`: `^1.7`
@@ -38,6 +37,7 @@ Business requirements may determine which packages are actually used or removed 
 - `laravel/ui`: `^4.5`
 - `livewire/livewire`: `^3.6`
 - `maatwebsite/excel`: `^3.1`
+- `nyholm/psr7`: `^1.8` — the PSR-7/PSR-17 implementation Passport requires (`psr/http-factory-implementation`) and the `AuthService` token lifecycle uses; declared directly so it never depends on another package pulling it in transitively.
 - `nnjeim/world`: `^1.1`
 - `opcodesio/log-viewer`: `*`
 - `openspout/openspout`: `^5.13`
@@ -73,6 +73,15 @@ Business requirements may determine which packages are actually used or removed 
 - `spatie/laravel-ignition`: `^2.9`
 - `squizlabs/php_codesniffer`: `^3.11`
 
+## Optional Dependencies
+
+Optional dependencies are approved but are NOT part of the base Composer configuration. Never add them to `templates/composer.json`, and never install them in a project whose requirements did not request the corresponding feature.
+
+- `laravel/socialite`: `^5.33` — Social login support. Installing the package does not activate Social Login: the feature itself is implemented only when the business requirements explicitly request it, and only for the requested providers (see `references/authentication.md`, Social Login (Socialite)).
+- `socialiteproviders/manager`: `^4.10` — approved only together with `laravel/socialite`, and only when a requested provider has no built-in Socialite driver (for example Sign in with Apple, installed as `socialiteproviders/apple:^6.1`). Pin the provider package to its latest stable version and verify it against the project's PHP and Laravel constraints before installing.
+
+Verify that the installed versions support the project's PHP and Laravel constraints before running Composer.
+
 ## Composer PSR-4 Autoload
 
 Preserve these mappings:
@@ -96,6 +105,7 @@ Do not add `UtilityHelper.php`, `FileHelper.php`, or any other helper file to `a
 
 ## Dependency Rules
 - Do not add unapproved packages.
+- Do not install optional dependencies unless the project requirements explicitly request the feature they support.
 - Do not replace approved packages with alternatives.
 - Do not silently change package versions.
 - Do not remove base dependencies during initial scaffold creation.

@@ -54,7 +54,7 @@ Run the gate from the skill workspace: `bash scripts/completion-gate.sh <project
     php artisan passport:keys
     ```
 
-5. Run the seeders after the module seeders are registered. Seeding creates the Passport personal access client (`database/seeders/PassportClientSeeder.php`), which is required to issue login tokens:
+5. Run the seeders after the module seeders are registered. Seeding creates both OAuth clients (`database/seeders/PassportClientSeeder.php`): the personal access client and the public First Party PKCE Client used by the login flow:
 
     ```bash
     php artisan db:seed
@@ -69,12 +69,37 @@ Run the gate from the skill workspace: `bash scripts/completion-gate.sh <project
 ## API Documentation
 
 - Swagger UI: `{APP_URL}/api/documentation` (L5-Swagger default route)
-- Public documentation endpoint: `GET {APP_URL}/api/v1/documentation` (serves `docs/API_DOCUMENTATION.md`, no authentication required)
+- Public documentation endpoint: `GET {APP_URL}/api/v1/documentation` (serves `docs/API_DOCUMENTATION.md` beginning with the **Public Authentication Configuration** section — the live `client_id`, `redirect_uri`, and `code_challenge_method: S256` to use in the login flow below — no authentication required)
 - Markdown documentation file: `docs/API_DOCUMENTATION.md`
 
 ## Authentication
 
 Laravel Passport is the default API authentication system. Roles and permissions are managed with Spatie Laravel Permission.
+
+Login uses the OAuth 2.0 authorization code grant with PKCE (references/authentication.md, Token Lifecycle):
+
+1. `POST /api/v1/auth/login` — send `email`, `password`, the First Party PKCE Client `client_id`, `redirect_uri`, and a PKCE `code_challenge` (`S256`); the response returns an authorization `code`.
+2. `POST /oauth/token` with `grant_type=authorization_code` and exactly five fields: the `client_id`, the `redirect_uri` (required — byte-identical to the value sent at login, RFC 6749 §4.1.3), the `code`, and the matching `code_verifier` — returns `access_token` and `refresh_token`. Any missing field answers `400 invalid_request` with a `hint` naming it (`Check the redirect_uri parameter`).
+3. Refresh before expiry: `POST /oauth/token` with `grant_type=refresh_token`, the `client_id`, and the current `refresh_token` — every refresh issues a NEW token pair and revokes the old one.
+4. `POST /api/v1/auth/logout` (Bearer access token) — revokes the access token and its associated refresh token.
+
+Token lifetimes are configured in `config/oauth.php` (`OAUTH_ACCESS_TOKEN_EXPIRES_IN` minutes, default 15; `OAUTH_REFRESH_TOKEN_EXPIRES_IN` days, default 30). The client is public: frontends need only its id, never a secret.
+
+### Registration (Laravel native email verification)
+
+- `POST /api/v1/auth/register` with `name`, `email` (unique), `password`, `password_confirmation` — creates the account (min 8-character confirmed password) and automatically sends the verification email through Laravel's native `MustVerifyEmail` machinery. The endpoint does not log the user in and issues no tokens; log in through the PKCE flow afterwards. A duplicate email answers 422, and the endpoint runs under the same `throttle:auth` limiter as login.
+
+### Password reset (Laravel native)
+
+1. `POST /api/v1/auth/forgot-password` with `email` — sends the reset link through Laravel's native Password broker. The answer is the same whether or not the address is registered (no account enumeration); a second link for the same address within 60 seconds answers 429.
+2. The email link opens the frontend reset-password page (`FRONTEND_URL`, default: the API URL) with `token` and `email` in the query.
+3. `POST /api/v1/auth/reset-password` with `token`, `email`, `password`, `password_confirmation` — the token is single-use and expires after 60 minutes (`auth.passwords.users.expire`).
+
+### Email verification (Laravel native)
+
+- `GET /api/v1/auth/email/verify/{uuid}/{hash}?expires=...&signature=...` — the signed link Laravel's native `VerifyEmail` notification emails (the link addresses the user by uuid). Following it stamps `email_verified_at`; the signature is valid for 60 minutes, and expired or tampered links answer 403.
+- `POST /api/v1/auth/email/resend` (Bearer access token) — re-sends the verification email for the authenticated user; already-verified accounts answer 422.
+- `GET /api/v1/auth/me` includes `email_verified_at` so clients know the verification status.
 
 ## Localization
 

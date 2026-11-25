@@ -58,13 +58,44 @@ function rewriteFile(string $file, array $replacements, array $mustContain, arra
     return '';
 }
 
-// --- 1. DatabaseSeeder: repoint the skeleton User import at the V1 model ---
+// --- 1. DatabaseSeeder: repoint the skeleton User import at the V1 model,
+//        re-enable model events, and register the Passport client seeder ---
+// Three lifecycle-required transformations of the skeleton file:
+//   a. App\Models\User -> App\Models\V1\User (the single V1 User model).
+//   b. Remove WithoutModelEvents: the trait suppresses Eloquent events, so
+//      the V1 User's `creating` hook never fires and seeded users are
+//      inserted without their required uuid (MySQL error 1364). It also
+//      breaks the scaffold-installed AuthTest, which bootstraps through
+//      RefreshDatabase + seeding in the test database.
+//   c. Register PassportClientSeeder: it is the single authoritative
+//      creator of the personal access client AND the public First Party
+//      PKCE Client (references/authentication.md, Token Lifecycle), and the
+//      lifecycle tests resolve the PKCE client through it (both the main
+//      and the test database receive the clients through seeding).
 $databaseSeeder = $projectPath.'/database/seeders/DatabaseSeeder.php';
+if (file_exists($databaseSeeder)) {
+    $content = file_get_contents($databaseSeeder);
+    if (! str_contains($content, 'PassportClientSeeder::class')) {
+        $content = str_replace(
+            "    public function run(): void\n    {\n",
+            "    public function run(): void\n    {\n".
+            "        \$this->call([\n".
+            "            PassportClientSeeder::class,\n".
+            "        ]);\n\n",
+            $content
+        );
+    }
+    file_put_contents($databaseSeeder, $content);
+}
 $result = rewriteFile(
     $databaseSeeder,
-    ['use App\Models\User;' => 'use App\Models\V1\User;'],
-    ['use App\Models\V1\User;'],
-    ['use App\Models\User;']
+    [
+        'use App\Models\User;' => 'use App\Models\V1\User;',
+        "use Illuminate\Database\Console\Seeds\WithoutModelEvents;\n" => '',
+        "    use WithoutModelEvents;\n\n" => '',
+    ],
+    ['use App\Models\V1\User;', 'PassportClientSeeder::class'],
+    ['use App\Models\User;', 'WithoutModelEvents']
 );
 if ($result !== '') {
     $failures[] = $result;

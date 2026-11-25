@@ -41,4 +41,16 @@ class UserFactory extends Factory
             'remember_token' => Str::random(10),
         ];
     }
+
+    /**
+     * Indicate that the user's email address is not yet verified (the
+     * Laravel-native unverified state, used by the email verification
+     * tests and any business flow that needs a pending account).
+     */
+    public function unverified(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'email_verified_at' => null,
+        ]);
+    }
 }

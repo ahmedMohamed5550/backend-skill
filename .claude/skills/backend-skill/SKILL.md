@@ -160,12 +160,13 @@ Follow `references/architecture.md` for the complete architecture rules.
 - The main API route file must require every generated `routes/v1/` route file.
 - Laravel's own `routes/web.php` and `routes/console.php` skeleton files stay unchanged; no other route file may be created directly inside `routes/`.
 - Use `Route::middleware('auth:api')->controller()->prefix()->group()` for protected module routes: authentication middleware is applied at the module route group level in the module's route file, never inside a Controller constructor. Controllers keep registering their per-action permission middleware.
-- Public endpoints are the only routes outside `auth:api` groups: the documentation group and the auth module's `login` route (`logout` and `me` stay inside the auth module's `auth:api` group).
+- Public endpoints are the only routes outside `auth:api` groups: the documentation group and the auth module's `register`, `login`, `forgot-password`, `reset-password`, and signed `email/verify/{uuid}/{hash}` routes (`logout`, `me`, and `email/resend` stay inside the auth module's `auth:api` group).
 - The module prefix must be lowercase and defined once.
 - Additional module routes must use action paths inside the existing prefix group.
 - Define static action paths (such as `/bulk-delete`) before `{uuid}` routes so the parameter cannot shadow them.
 - Do not create route subdirectories other than `routes/v1/`; module route files sit directly inside `routes/v1/`, never in module-specific subdirectories.
 - Every project also includes a public `routes/v1/documentation.php` route file required from `api1.php`; it is the only route group without authentication middleware (see API and Swagger Documentation Requirement).
+- Every project includes the scaffold-installed `routes/v1/auth.php` auth module route file: the public auth endpoints are `register` and `login` (both `throttle:auth`), `forgot-password` and `reset-password` (both `throttle:password_reset`), and the signed `GET /email/verify/{uuid}/{hash}` route (`signed` middleware, route name `verification.verify` — see Rate Limiting under Authentication and `references/authentication.md`, Email Verification); `logout`, `me`, and `email/resend` (`throttle:email_resend`) sit inside its `auth:api` group (see `references/authentication.md`, Token Lifecycle and Authentication Route Middleware). Passport's automatic routes are disabled (`Passport::ignoreRoutes()` in `AppServiceProvider::register()`); `AppServiceProvider::boot()` registers exactly one OAuth endpoint — `POST /oauth/token` through Passport's `AccessTokenController` with the `throttle` middleware — outside the `api/v1` prefix. No other OAuth route may be registered: the authorize/consent, personal-token, scope, and device routes must keep answering `404` (see `references/authentication.md`, Passport route hardening).
 
 ### Standard Module Endpoints
 
@@ -328,6 +329,8 @@ Each module must have exactly:
 
 Keep them separate even if their current structures are similar.
 
+Approved exceptions: the Documentation module (no Service, no Resources) and the Auth module (no Resources; its endpoints return token lifecycle payloads and the user profile — see `references/authentication.md`, Token Lifecycle).
+
 ## 13. PHP Enums
 
 - Use PHP Backed Enums.
@@ -353,6 +356,8 @@ Never return a different JSON response structure.
 The approved response structure and its field rules are specified in `references/api-standards.md` (API Response Structure).
 
 Exceptions and validation errors must be handled centrally and converted to the same response structure.
+
+Rate-limit rejections (HTTP 429) use the same response structure through the central exception handler and keep the throttle headers (`Retry-After`, `X-RateLimit-*`); see Rate Limiting under Authentication and `references/api-standards.md`.
 
 Use the approved ApiResponseTrait template without silently changing its implementation.
 
@@ -445,9 +450,16 @@ Follow `references/localization.md`.
 ## 18. Authentication
 
 - Laravel Passport is the default API authentication system.
+- Every project implements the complete Access Token and Refresh Token lifecycle on Passport's own OAuth machinery (see `references/authentication.md`, Token Lifecycle): login issues an authorization code through the authorization code + PKCE flow of the seeded public first-party client; Passport's `/oauth/token` endpoint exchanges that code for an access token + refresh token pair and rotates the pair on every refresh; logout revokes the current access token AND its associated refresh token.
+- The scaffold installs the complete Auth module (`routes/v1/auth.php`, `AuthController`, `AuthService`, `LoginRequest`, `RegisterRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`) plus `config/oauth.php`, the `AppServiceProvider` TTL registration and Passport route hardening, the OAuth client seeder, and the lifecycle feature tests (`tests/Feature/V1/AuthTest.php`, `RegisterTest.php`, `PasswordResetTest.php`, `EmailVerificationTest.php`). Do not rewrite the approved token mechanics, generate tokens manually, use the deprecated password or implicit grants, or expose client secrets to public frontends.
+- Every project ships the default Register endpoint (see `references/authentication.md`, Registration): the public `POST /api/v1/auth/register` route (`throttle:auth`) validates `name`, `email` (`unique:users`), and `password` (min 8, confirmed) through `RegisterRequest`; `AuthService::register()` creates the user inside `DB::transaction()` and automatically sends the framework's native `VerifyEmail` notification after the commit. Registration answers 201 with the new user's public profile (`uuid`, `name`, `email`, `email_verified_at: null`), never issues tokens or roles, and never gates login on email verification.
+- Every project ships the native password reset lifecycle (see `references/authentication.md`, Password Reset): `POST /api/v1/auth/forgot-password` and `POST /api/v1/auth/reset-password` built on Laravel's native Password broker (`Password::sendResetLink` / `Password::reset`), with the reset link pointed at the frontend through `ResetPassword::createUrlUsing()` and `config('app.frontend_url')`. Never reimplement token generation, hashing, expiry, or single-use semantics, and never remove the neutral answer for unknown addresses.
+- Every project ships the native email verification lifecycle (see `references/authentication.md`, Email Verification): the `User` model implements `MustVerifyEmail`; the signed public `GET /api/v1/auth/email/verify/{uuid}/{hash}` route carries Laravel's `signed` middleware under the native route name `verification.verify` and addresses the user by uuid (public API identifiers are UUIDs, never database ids) through the `VerifyEmail::createUrlUsing()` hook registered in the approved `AppServiceProvider` template — never remove that registration, and never rebuild the link with the database id; and the authenticated `POST /api/v1/auth/email/resend` endpoint re-sends the framework's `VerifyEmail` notification. Never build custom verification tokens, tables, or notifications, never rename `verification.verify`, and never move the signed route behind `auth:api`.
+- The public authentication configuration of the seeded First Party PKCE Client (`client_id`, its registered `redirect_uri`, `code_challenge_method: S256`) is exposed to Web and Mobile clients through the API documentation: the generated `docs/API_DOCUMENTATION.md` MUST start with the Public Authentication Configuration section carrying the client's database values, and the public documentation endpoint serves the documentation beginning with that section with the runtime database values; it never exposes client secrets or internal credentials (see `references/authentication.md`, Token Lifecycle).
+- Token lifetimes are configurable through `config/oauth.php` (`OAUTH_ACCESS_TOKEN_EXPIRES_IN` minutes, `OAUTH_REFRESH_TOKEN_EXPIRES_IN` days) and registered via `Passport::tokensExpireIn()` / `Passport::refreshTokensExpireIn()` in the approved `AppServiceProvider` template.
 - Apply the Passport authentication middleware at the route level (`auth:api` on the module route group); never inside Controller constructors (see Routes and `references/authentication.md`, Authentication Route Middleware).
 - Prepare the standard authentication foundation following the Passport 13 setup sequence in `references/authentication.md`; never run `passport:install` on a database that already contains the oauth tables.
-- Google Login is an optional feature.
+- Social Login (Laravel Socialite) is an optional feature: installing the package does not activate it, and implementing it — only for the providers the project requests — must leave the default Email/Password + Passport flow unchanged (see `references/authentication.md`, Social Login (Socialite)).
 - Phone OTP verification is an optional feature.
 - Twilio is the default provider for phone OTP.
 - Authentication and verification flows must integrate with the single V1 User Model (`App\Models\V1\User`) and the users table.
@@ -457,6 +469,21 @@ Follow `references/localization.md`.
 Do not enable optional authentication methods unless required by the project.
 
 Follow `references/authentication.md`.
+
+### Rate Limiting
+
+Every project ships with the approved Laravel-native rate limiters (see `references/api-standards.md`, Rate Limiting):
+
+- The `api` baseline limiter (60 requests per minute per authenticated user id, or per IP for guests) is enabled on every `/api/v1` route through `$middleware->throttleApi()` in the approved `bootstrap/app.php` template.
+- The `auth` limiter guards the login and register endpoints through the `throttle:auth` middleware: 5 attempts per minute and 30 per hour, enforced independently per normalized email and per IP.
+- The `password_reset` limiter guards `forgot-password` and `reset-password` through the `throttle:password_reset` middleware: 5 attempts per minute and 30 per hour, with the same two-bucket pattern as `auth`.
+- The `email_resend` limiter guards `email/resend` through the `throttle:email_resend` middleware: 6 requests per minute and 30 per hour, keyed per authenticated user id.
+- The `POST /oauth/token` registration keeps Passport's own `throttle` middleware (60 requests per minute).
+- Limits are configured in `config/rate_limiting.php` and overridable per environment through the `RATE_LIMIT_*` variables the scaffold writes into `.env`.
+- Exceeding a limiter answers the approved envelope with HTTP 429, the localized `messages.rate_limited` message (`en` and `ar`), and the `Retry-After` / `X-RateLimit-*` headers.
+- Reserved, inert config keys for the future OTP limiters exist in `config/rate_limiting.php` (`otp_send_*`, `otp_verify_*`); attach them only when that optional feature is implemented and approved.
+
+Do not remove, weaken, or replace the approved rate limiters without explicit user approval.
 
 ### Mandatory Authorization
 
@@ -482,13 +509,14 @@ Follow `references/authentication.md` for the complete authorization implementat
 - Follow all instructions in that reference when generating API documentation.
 - After completing the backend API implementation, MUST generate `docs/API_DOCUMENTATION.md`.
 - The generated file MUST cover every implemented module, endpoint, CRUD operation, and additional business action.
+- The generated file MUST START with a dedicated **Public Authentication Configuration** section (see `references/api-documentation.md`, 4.1): the first line is exactly `## Public Authentication Configuration`, the section carries the `client_id` and the first registered `redirect_uri` of the seeded First Party PKCE Client plus `code_challenge_method: S256`, and it ends with a `---` separator before the rest of the documentation. The values MUST be resolved dynamically from the database when the documentation is generated — never hardcoded, invented, or left as placeholders.
 - The documentation MUST be based on the actual implementation, not assumptions or initial requirements alone.
 - MUST generate and maintain both Swagger/OpenAPI documentation and `docs/API_DOCUMENTATION.md`.
 - Both documentation outputs MUST remain consistent with the actual API implementation.
 - Whenever an endpoint or its behavior changes, update both documentation outputs.
 - Do not consider backend generation complete until the API documentation has been generated and verified.
 - Every project MUST expose a public documentation endpoint by default: `GET /api/v1/documentation`, implemented by `App\Http\Controllers\V1\DocumentationController` and the `routes/v1/documentation.php` route file (copied automatically by the scaffold).
-- The endpoint MUST require no authentication and no permission. It returns `docs/API_DOCUMENTATION.md` with `Content-Type: text/markdown`.
+- The endpoint MUST require no authentication and no permission. It returns `docs/API_DOCUMENTATION.md` with `Content-Type: text/markdown`, beginning with the **Public Authentication Configuration** section and its runtime values: the `client_id` and first registered `redirect_uri` of the seeded First Party PKCE Client, resolved dynamically from the database at request time, plus `code_challenge_method: S256`. The controller rebuilds that leading section from the database on every request (the file's generation-time copy is never served), so a re-seeded client reaches the Frontend without regenerating the documentation. Web and Mobile use the same client and redirect URI; the section never exposes client secrets or internal credentials. When the client is not seeded, the documentation is served without the section.
 - Frontend and mobile clients always receive two documentation links: the Swagger UI and the public documentation endpoint.
 - If `docs/API_DOCUMENTATION.md` has not been generated yet, the endpoint returns the standard 404 API response shape.
 - The Documentation module is the approved exception to the module structure: exactly one Controller, no Service, and no Resources, because it serves a file and contains no business logic.
@@ -515,6 +543,9 @@ Use the approved Laravel configuration templates.
 - Use the approved `bootstrap/providers.php` template.
 - Use the approved `config/app.php` template.
 - Use the approved `config/auth.php` template. It sets the default authentication guard to `api` and defines the `api` guard with the `passport` driver on the `users` provider; the scaffold installs it over the Laravel skeleton file.
+- Use the approved `config/oauth.php` template and the approved `AppServiceProvider` template: they configure the OAuth token lifetimes consumed by `Passport::tokensExpireIn()` and `Passport::refreshTokensExpireIn()` (see `references/authentication.md`, Token Lifecycle); the scaffold installs both.
+- Use the approved `config/rate_limiting.php` template: it holds the approved `api`, `auth`, `password_reset`, and `email_resend` limits consumed by the rate limiters defined in the approved `AppServiceProvider` template, plus the reserved keys for the future OTP limiters (see Rate Limiting under Authentication); the scaffold installs it and writes the default `RATE_LIMIT_*` variables into `.env`.
+- The approved `bootstrap/app.php` template enables the `api` baseline limiter on the api middleware group through `$middleware->throttleApi()` and renders rate-limit rejections as the approved 429 envelope with their throttle headers.
 - The scaffold points the Spatie-published `config/permission.php` at the extended `App\Models\V1\Permission` and `App\Models\V1\Role` models (see Mandatory Authorization) and installs both models from the approved templates. Do not change these references to the vendor models.
 - Preserve Laravel's default required files unless a specific approved template replaces them.
 - Do not add custom Service Providers or aliases unless explicitly approved.
@@ -547,7 +578,7 @@ The following reference files are mandatory and must be read and followed when c
 | `references/models.md` | Model location, UUID generation implementation, mass assignment, relationships, API identification | Creating or modifying Models. |
 | `references/api-standards.md` | Controllers, Services, Requests, Resources, API response structure, delete and list operations, exception handling, route and permission naming | Implementing endpoints and API behavior. |
 | `references/api-documentation.md` | `docs/API_DOCUMENTATION.md` generation standard | Generating or updating API documentation. |
-| `references/authentication.md` | Passport 13 setup sequence, Google Login, phone OTP, authorization and permissions implementation | Implementing authentication or permissions. |
+| `references/authentication.md` | Passport 13 setup sequence, Social Login (Socialite), phone OTP, authorization and permissions implementation | Implementing authentication or permissions. |
 | `references/localization.md` | Supported languages, `SetLocale` middleware | Configuring localization. |
 | `references/helpers-and-traits.md` | Approved Helpers methods, `ApiResponseTrait`, excluded helper files | Using Helpers or the response trait. |
 | `references/dependencies.md` | Approved Composer dependencies and autoload configuration | Modifying `composer.json` or installing packages. |
@@ -576,6 +607,9 @@ Templates the scaffold copies automatically (do not copy them manually):
 - `templates/bootstrap/providers.php`
 - `templates/config/app.php`
 - `templates/config/auth.php`
+- `templates/config/oauth.php`
+- `templates/config/rate_limiting.php`
+- `templates/app/Providers/AppServiceProvider.php`
 - `templates/app/Helpers/Helpers.php`
 - `templates/app/Traits/ApiResponseTrait.php`
 - `templates/app/Http/Middleware/SetLocale.php`
@@ -584,18 +618,40 @@ Templates the scaffold copies automatically (do not copy them manually):
 - `templates/lang/ar/messages.php`
 - `templates/routes/api1.php`
 - `templates/routes/documentation.php`
+- `templates/routes/v1/auth.php`
 - `templates/app/Http/Controllers/V1/DocumentationController.php`
+- `templates/app/Http/Controllers/V1/AuthController.php`
+- `templates/app/Services/V1/AuthService.php`
+- `templates/app/Http/Requests/V1/Auth/LoginRequest.php`
+- `templates/app/Http/Requests/V1/Auth/RegisterRequest.php`
+- `templates/app/Http/Requests/V1/Auth/ForgotPasswordRequest.php`
+- `templates/app/Http/Requests/V1/Auth/ResetPasswordRequest.php`
 - `templates/app/Models/V1/User.php`
 - `templates/app/Models/V1/Role.php`
 - `templates/app/Models/V1/Permission.php`
 - `templates/database/factories/V1/UserFactory.php`
 - `templates/database/seeders/PassportClientSeeder.php`
+- `templates/tests/TestCase.php`
+- `templates/tests/Feature/V1/AuthTest.php`
+- `templates/tests/Feature/V1/RegisterTest.php`
+- `templates/tests/Feature/V1/PasswordResetTest.php`
+- `templates/tests/Feature/V1/EmailVerificationTest.php`
+- `templates/tests/Feature/V1/DocumentationTest.php`
 - `templates/README.md`
 
 Templates to adapt when implementing modules (not copied by the scaffold):
 
 - `templates/routes/module-routes.php` — approved structure for each module route file (see Routes).
 - `templates/app/Enums/ExampleEnum.php` — approved example for PHP Backed Enums (see PHP Enums).
+
+Optional feature templates (adapt only when the project requirements explicitly request the feature; never copied by the scaffold, and never added to `templates/composer.json`):
+
+- `templates/config/social.php` — Social Login provider allowlist and defaults (see `references/authentication.md`, Social Login (Socialite)).
+- `templates/database/migrations/2024_01_01_000001_create_social_accounts_table.php` — `social_accounts` table; rename with the current timestamp when copying.
+- `templates/app/Models/V1/SocialAccount.php` — the social identity model.
+- `templates/app/Http/Requests/V1/Auth/SocialLoginRequest.php` — social login validation (access token or ID token + PKCE fields).
+- `templates/app/Http/Requests/V1/Auth/LinkProviderRequest.php` — provider link validation.
+- `templates/tests/Feature/V1/SocialLoginTest.php` — Social Login feature spec (Socialite facade mocked).
 
 If a target file already exists:
 
@@ -625,6 +681,12 @@ After creating the standardized foundation:
 - Verify that `routes/api1.php` is the only skill-generated route file directly inside `routes/`, that every module route file is generated inside `routes/v1/`, and that `api1.php` requires every generated `routes/v1/` route file.
 - Verify the MySQL environment configuration.
 - Verify the authentication configuration: `config/auth.php` sets the default guard to `api` and defines the `api` guard with the `passport` driver and the `users` provider.
+- Verify the token lifecycle: the scaffold-installed Auth module, `config/oauth.php`, the `AppServiceProvider` TTL registration and Passport route hardening (only `POST /oauth/token` registered), and the seeded OAuth clients are in place, and the lifecycle feature tests (`tests/Feature/V1/AuthTest.php`: login code issuance, token exchange, refresh rotation, expiry, invalid refresh tokens, logout revoking both tokens, unused Passport routes returning 404) pass (see `references/authentication.md`, Token Lifecycle).
+- Verify the native password reset lifecycle: `ForgotPasswordRequest` and `ResetPasswordRequest` exist, the AuthService calls `Password::sendResetLink` / `Password::reset`, `ResetPassword::createUrlUsing()` is registered with `config('app.frontend_url')`, and the scaffold-installed `tests/Feature/V1/PasswordResetTest.php` passes (see `references/authentication.md`, Password Reset).
+- Verify the default Register endpoint: the public `register` route with `throttle:auth` exists, `RegisterRequest` validates the input with the `unique:users` email rule, `AuthService::register()` creates the user inside `DB::transaction()` and calls the native `sendEmailVerificationNotification()` after the commit, and the scaffold-installed `tests/Feature/V1/RegisterTest.php` passes (see `references/authentication.md`, Registration).
+- Verify the native email verification lifecycle: `app/Models/V1/User.php` implements `MustVerifyEmail`, the signed `verification.verify` route with the `signed` middleware uses the `{uuid}` parameter (Route, Controller, and Service all resolve the user by uuid), `VerifyEmail::createUrlUsing()` is registered in the `AppServiceProvider` so the emailed links carry the uuid, `InvalidSignatureException` is rendered by the central handler, `laravel/fortify` is absent from `composer.json` and no `config/fortify.php` exists (Fortify is not part of the approved architecture; a second `verification.verify` route would hijack every emailed verification link), and the scaffold-installed `tests/Feature/V1/EmailVerificationTest.php` passes (see `references/authentication.md`, Email Verification).
+- Verify the public authentication configuration: `docs/API_DOCUMENTATION.md` starts with the Public Authentication Configuration section (first line `## Public Authentication Configuration`) whose `client_id` and `redirect_uri` match the seeded First Party PKCE Client in the database, plus `code_challenge_method: S256` and no secret; the `DocumentationController` rebuilds that leading section from the database at request time so the response carries the runtime values; and the scaffold-installed `tests/Feature/V1/DocumentationTest.php` passes.
+- Verify the rate limiting: `bootstrap/app.php` enables `throttleApi()`, the `AppServiceProvider` defines the `api`, `auth`, `password_reset`, and `email_resend` limiters, `config/rate_limiting.php` is installed with the approved keys, the login and register routes carry `throttle:auth`, the reset routes carry `throttle:password_reset`, the resend route carries `throttle:email_resend`, and the rate-limiting tests in `tests/Feature/V1/AuthTest.php`, `RegisterTest.php`, `PasswordResetTest.php`, and `EmailVerificationTest.php` pass (see `references/api-standards.md`, Rate Limiting).
 - Verify the authorization configuration: `config/permission.php` imports and references `App\Models\V1\Role` and `App\Models\V1\Permission`, and both model files exist in `app/Models/V1`.
 - Verify the approved middleware and locale configuration.
 - Verify the Helpers autoload configuration.
@@ -666,7 +728,7 @@ If anything is incomplete or failing, the project MUST remain `BLOCKED`:
 
 ### Running the Gate
 
-- Run `scripts/completion-gate.sh <project-folder-name>` as the final workflow step, after all implementation, documentation, and testing work is finished. The script verifies every machine-checkable criterion (Composer installation, configuration, migrations, routes, Swagger generation, documentation files, approved structure checks, the complete test suite, and a boot and HTTP smoke test of the public documentation endpoint) and prints the verdict: exit code 0 means `READY`, any other result means `BLOCKED` with the failure list.
+- Run `scripts/completion-gate.sh <project-folder-name>` as the final workflow step, after all implementation, documentation, and testing work is finished. The script verifies every machine-checkable criterion (Composer installation, configuration, migrations, routes, Swagger generation, documentation files — including that `docs/API_DOCUMENTATION.md` starts with the Public Authentication Configuration section carrying the seeded client's database values — approved structure checks, the complete test suite, and a boot and HTTP smoke test of the public documentation endpoint returning the documentation beginning with that section) and prints the verdict: exit code 0 means `READY`, any other result means `BLOCKED` with the failure list.
 - Read the failure list, fix the actual root causes, and re-run the gate until it passes. Do not weaken or skip checks to make the gate pass.
 - The script does not replace judgment: criteria 1 and 4 (full requirement coverage; routes, authentication, and integrations working correctly) and documentation accuracy under criterion 5 must be confirmed through the Verification section before reporting `READY`.
 - Report the final state explicitly as `READY` or `BLOCKED`. A project with no completed gate report is `BLOCKED` by default.
@@ -682,6 +744,7 @@ If anything is incomplete or failing, the project MUST remain `BLOCKED`:
 - Never use a different API response format.
 - Never use database IDs as public API identifiers.
 - Never skip transactions for database write operations.
+- Never remove, weaken, or bypass the approved rate limiters (see Rate Limiting under Authentication and `references/api-standards.md`, Rate Limiting).
 - Never use SQLite as the default database.
 - Automatically create the project's MySQL database if it does not exist, without asking for approval.
 - Never skip mandatory templates or references.

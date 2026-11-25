@@ -46,6 +46,10 @@ For each module:
 - Do not create additional Controllers or Services for the same module.
 - Do not split a module into extra classes or layers unless explicitly approved.
 
+Approved exceptions:
+- The Documentation module: one Controller, no Service, no Resources (serves a file; see SKILL.md, API and Swagger Documentation Requirement).
+- The Auth module (installed by the scaffold; see references/authentication.md, Token Lifecycle): one Controller, one Service, three Form Requests (`LoginRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`), and no Resources — its endpoints return token lifecycle payloads, the user profile, and lifecycle status messages, not record collections.
+
 ## Responsibilities
 - Controllers handle incoming HTTP requests and delegate operations to the module Service.
 - Services contain business logic and database query operations.

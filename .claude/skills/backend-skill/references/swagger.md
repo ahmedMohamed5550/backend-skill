@@ -92,7 +92,7 @@ Protected endpoint example (`ProductsController::store`):
 public function store(StoreProductRequest $request): JsonResponse
 ```
 
-Public endpoint example (login):
+Public endpoint example (login — the first step of the token lifecycle, references/authentication.md, Token Lifecycle):
 
 ```php
 /**
@@ -101,25 +101,39 @@ Public endpoint example (login):
  *     operationId="authLogin",
  *     tags={"Auth"},
  *     summary="Login",
- *     description="Authenticate a user and return a Bearer token.<br><br>🌐 <b>Public endpoint</b>",
+ *     description="Verify the credentials and issue a short-lived authorization code bound to the PKCE code_challenge. Exchange the code (with the code_verifier) at POST /oauth/token to obtain the access and refresh tokens.<br><br>🌐 <b>Public endpoint</b>",
  *     x={"required-permission": null},
  *
  *     @OA\RequestBody(
  *         required=true,
  *
  *         @OA\JsonContent(
- *             required={"email", "password"},
+ *             required={"email", "password", "client_id", "redirect_uri", "code_challenge", "code_challenge_method"},
  *
  *             @OA\Property(property="email", type="string", format="email", example="admin@example.local"),
- *             @OA\Property(property="password", type="string", format="password", example="password")
+ *             @OA\Property(property="password", type="string", format="password", example="password"),
+ *             @OA\Property(property="client_id", type="string", format="uuid", description="The seeded First Party PKCE Client id"),
+ *             @OA\Property(property="redirect_uri", type="string", example="http://localhost:8000"),
+ *             @OA\Property(property="code_challenge", type="string", description="base64url(sha256(code_verifier)) — 43-128 unreserved characters (RFC 7636)"),
+ *             @OA\Property(property="code_challenge_method", type="string", enum={"S256"}, example="S256")
  *         )
  *     ),
  *
  *     @OA\Response(response=200, description="Logged in successfully"),
- *     @OA\Response(response=401, description="Invalid credentials"),
- *     @OA\Response(response=422, description="Validation failed")
+ *     @OA\Response(response=422, description="Validation failed (credentials or PKCE/client fields)")
  * )
  */
 ```
 
+Passport's token endpoint (`POST /oauth/token`) must also be documented in the Auth Controller's docblock alongside the global annotations, as exactly **one** `@OA\Post` operation covering both grants: the `authorization_code` exchange (grant code + `code_verifier` -> `{token_type, expires_in, access_token, refresh_token}`) and the `refresh_token` grant (refresh token -> new pair, old pair revoked), with the grant-specific request fields marked in their property descriptions. Never declare two `@OA\Post` annotations for the same path: swagger-php cannot merge duplicate path+method operations and `l5-swagger:generate` aborts with "Unable to merge @OA\Post()". Document its OAuth 2.0 error responses explicitly (`400 invalid_grant`, `401 invalid_client`) because this endpoint answers in the OAuth wire format, not the API envelope — the approved exception to the envelope rule. The approved `AuthController` template already carries the merged operation; keep it in sync with Passport's behavior when the flow changes.
+
 Follow the same structure for every endpoint: exact route path, `operationId`, `tags`, `summary`, permission `description` and `x` extension, `security` for protected endpoints, request body or parameters, and every applicable response code.
+
+Authentication-only endpoints (`logout`, `me`, `email/resend`) require no permission but do require a Bearer token: document them with `security={{"bearerAuth": {}}}`, `x={"required-permission": null}`, and a description in the form `🔒 <b>Requires authentication</b> (no permission required)`. They are not public endpoints and must not use the 🌐 label.
+
+The password reset and email verification endpoints shipped by the scaffold follow the same rules, with these specifics (the approved `AuthController` template carries the complete annotations; keep them in sync when the flow changes):
+
+- `POST /api/v1/auth/register` is public (`🌐 <b>Public endpoint</b>`, `x={"required-permission": null}`): document the request body (`RegisterRequest`: `name`, `email` — unique across users, `password`, `password_confirmation`), the **201** success envelope carrying the created user's public profile (`uuid`, `name`, `email`, `email_verified_at` — always `null` at registration), and state in the description that the endpoint creates the account, automatically mails the native verification email, and issues no tokens (clients log in afterwards through the login + PKCE flow). Document the 422 validation failures (rules and duplicate email) and the 429 throttle response (`throttle:auth`).
+- `POST /api/v1/auth/forgot-password` and `POST /api/v1/auth/reset-password` are public (`🌐 <b>Public endpoint</b>`, `x={"required-permission": null}`): document the request bodies (`ForgotPasswordRequest`: `email`; `ResetPasswordRequest`: `token`, `email`, `password`, `password_confirmation`), the neutral 200 success (state in the description that the answer is identical for unknown addresses), the 422 validation failures, and the 429 rate-limit response for `reset-password` (the native broker throttle).
+- `GET /api/v1/auth/email/verify/{uuid}/{hash}` is public and parameterized: declare `@OA\Parameter` entries for `{uuid}` (`string`, `format=uuid`, the user uuid from the emailed link — public API identifiers are UUIDs, never database ids) and `{hash}` (`string`, the `sha1(email)` verification hash), plus the signature query parameters Laravel appends (`expires`, `signature`) so the documented contract matches the actual signed URL. Document the full response set: 200 (verified / idempotent), 403 (expired or tampered signature), 404 (unknown uuid), and 422 (hash mismatch).
+- `POST /api/v1/auth/email/resend` is the auth-only shape described above; document the 200 sent response, the 422 already-verified business failure, and the 429 rate-limit response.

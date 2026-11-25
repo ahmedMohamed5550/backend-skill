@@ -25,7 +25,11 @@ The file must document the complete API implementation, including every module, 
 
 Do not generate documentation containing only endpoint names or basic Swagger descriptions.
 
-The generated file is served publicly through the standard documentation endpoint `GET /api/v1/documentation`, so frontend and mobile clients can access it without authentication. When the documentation is regenerated, the endpoint serves the updated file automatically. This endpoint is itself part of the API and must be documented as a public endpoint.
+The generated file MUST start with the mandatory **Public Authentication Configuration** section (see 4.1): its `client_id` and `redirect_uri` are resolved dynamically from the seeded First Party PKCE Client in the database, plus `code_challenge_method: S256` (see `references/authentication.md`, Token Lifecycle).
+
+The file is served publicly through the standard documentation endpoint `GET /api/v1/documentation`, so frontend and mobile clients can access it without authentication. The endpoint returns the documentation beginning with that section and rebuilds its values from the database at request time, so the response always carries the current runtime configuration and the Frontend reads it directly from the documentation response. When the client is not seeded, the endpoint serves the documentation without the section.
+
+The file itself must never contain real credentials, secrets, private keys, or access tokens; the Public Authentication Configuration resolves public values only. When the documentation is regenerated, the endpoint serves the updated file automatically. This endpoint is itself part of the API and must be documented as a public endpoint, including its leading configuration section.
 
 ## 3. Source of Truth
 
@@ -52,9 +56,46 @@ If an implementation detail cannot be verified, explicitly mark it as `Not verif
 
 ## 4. Required Documentation Structure
 
-The generated `docs/API_DOCUMENTATION.md` MUST contain the following sections:
+The generated `docs/API_DOCUMENTATION.md` MUST contain the following sections, in this order:
 
-### 4.1 Project API Overview
+### 4.1 Public Authentication Configuration (mandatory first section)
+
+`docs/API_DOCUMENTATION.md` MUST start with the Public Authentication Configuration section. The first line of the file MUST be exactly:
+
+```
+## Public Authentication Configuration
+```
+
+The section documents the public login configuration of the seeded First Party PKCE Client (`references/authentication.md`, Token Lifecycle):
+
+- `client_id`: the id of the seeded First Party PKCE Client.
+- `redirect_uri`: the client's first registered redirect URI.
+- `code_challenge_method`: `S256`.
+
+The `client_id` and `redirect_uri` MUST be resolved dynamically from the database when the documentation is generated: query the `oauth_clients` row named `First Party PKCE Client` (`revoked = false`) and write its actual values. Never hardcode, invent, or placeholder these values.
+
+The section exposes only these public values. Never include a client secret, private key, or any other internal credential. The section ends with a `---` separator, followed by the rest of the documentation starting with the Project API Overview (4.2).
+
+Required section shape:
+
+```markdown
+## Public Authentication Configuration
+
+OAuth 2.0 authorization code + PKCE login configuration for the
+first-party client (POST /api/v1/auth/login, then POST /oauth/token).
+Web and Mobile use the same client and redirect URI. The client is
+public: it holds no secret, and PKCE protects the token exchange.
+
+- `client_id`: <value resolved from the database>
+- `redirect_uri`: <value resolved from the database>
+- `code_challenge_method`: `S256`
+
+---
+```
+
+The public documentation endpoint (`GET /api/v1/documentation`) serves the file beginning with this section and rebuilds its values from the database at request time, so the Frontend always receives the current runtime configuration directly from the documentation response. When the client is not seeded, the endpoint serves the documentation without the section.
+
+### 4.2 Project API Overview
 
 Document:
 
@@ -68,20 +109,23 @@ Document:
 
 Do not invent production URLs. Use the configured URL or a clearly identified placeholder when the deployment URL is not available.
 
-### 4.2 Authentication
+### 4.3 Authentication
 
 Document:
 
 - Authentication mechanism.
 - Token type.
-- How clients obtain authentication tokens.
+- How clients obtain authentication tokens (the login flow uses the public client configuration documented in the Public Authentication Configuration section, 4.1 — do not repeat the client values here).
 - How clients send authentication tokens.
 - Token-related requirements.
-- Public endpoints that do not require authentication.
+- The registration lifecycle: `POST /api/v1/auth/register` (public, creates the account and automatically sends the native verification email) — see references/authentication.md, Registration.
+- The password reset lifecycle: `POST /api/v1/auth/forgot-password` (neutral success answer, frontend reset link via `FRONTEND_URL`) and `POST /api/v1/auth/reset-password` (single-use, 60-minute token) — see references/authentication.md, Password Reset.
+- The email verification lifecycle: the signed `GET /api/v1/auth/email/verify/{uuid}/{hash}` link (60-minute signature, addressing the user by uuid) and the authenticated `POST /api/v1/auth/email/resend` — see references/authentication.md, Email Verification.
+- Public endpoints that do not require authentication (register, login, forgot-password, reset-password, and the signed verification link).
 
 Never include real credentials, secrets, private keys, or access tokens.
 
-### 4.3 Permissions Overview
+### 4.4 Permissions Overview
 
 Document:
 
@@ -92,7 +136,7 @@ Document:
 
 Permission names MUST match the actual permission definitions and middleware used by the project.
 
-### 4.4 Modules Index
+### 4.5 Modules Index
 
 Create an index of all implemented API modules.
 
@@ -104,7 +148,7 @@ For each module, include:
 - Related resources.
 - Relevant relationships with other modules.
 
-### 4.5 Module Documentation
+### 4.6 Module Documentation
 
 Create a separate detailed section for every module.
 
@@ -382,10 +426,11 @@ The AI MUST follow this workflow:
 5. Inspect Resources and actual response structures.
 6. Inspect Services and business workflows.
 7. Verify authentication and permission requirements.
-8. Generate or update `docs/API_DOCUMENTATION.md`.
-9. Generate or update Swagger/OpenAPI documentation.
-10. Compare both documentation outputs against the actual implementation.
-11. Correct missing, outdated, or inconsistent documentation.
+8. Resolve the seeded First Party PKCE Client from the database: its `client_id` and first registered `redirect_uri` (query the `oauth_clients` row named `First Party PKCE Client` with `revoked = false`). If the clients have not been seeded yet, run the seeders before generating the documentation — the values must come from the database, never from assumptions.
+9. Generate or update `docs/API_DOCUMENTATION.md`, starting with the Public Authentication Configuration section carrying the resolved values (4.1).
+10. Generate or update Swagger/OpenAPI documentation.
+11. Compare both documentation outputs against the actual implementation.
+12. Correct missing, outdated, or inconsistent documentation.
 
 Do not generate final API documentation based only on the initial project requirements.
 
@@ -434,6 +479,8 @@ Before completing the backend project, verify:
 - [ ] Relationships and UUID references are accurate.
 - [ ] Markdown documentation matches Swagger/OpenAPI.
 - [ ] No invented or outdated endpoints remain.
+- [ ] `docs/API_DOCUMENTATION.md` starts with the Public Authentication Configuration section (first line exactly `## Public Authentication Configuration`), and its `client_id` and `redirect_uri` are the seeded First Party PKCE Client's actual database values — never hardcoded or invented — with `code_challenge_method: S256` and no client secret.
 - [ ] The public documentation endpoint (`GET /api/v1/documentation`) serves the generated file.
+- [ ] The public documentation endpoint response begins with the Public Authentication Configuration section carrying the runtime database values, so the Frontend reads the login configuration directly from the documentation response.
 
 The backend project MUST NOT be considered fully documented until this checklist has been verified.
