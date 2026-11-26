@@ -109,7 +109,7 @@ Test the important scenarios for each module based on its actual requirements.
 - Assert the approved response envelope on every response:
   - The `message`, `status_code`, and `data` keys exist.
   - `status_code` equals the actual HTTP status code.
-  - `pagination` is present on list responses when applicable.
+  - List responses nest Laravel's paginator structure inside `data`: the keys `data`, `links`, and `meta`.
 - Assert that success messages follow the dynamic message convention in `references/api-standards.md` (for example `Categories created successfully.`), never generic messages.
 
 ### 5.2 CRUD Coverage
@@ -127,7 +127,7 @@ For modules that implement CRUD operations, cover the relevant scenarios:
 - Pagination behavior: `per_page` is respected.
 - Sorting behavior: `sortBy` and `sortDirection` produce the expected order.
 - Invalid `sortBy` (not in the approved whitelist) and invalid `sortDirection` never cause a 500 error or an SQL error; the approved fallback or validation behavior applies.
-- A page beyond the last page returns empty data with a valid pagination structure.
+- A page beyond the last page returns an empty nested `data` array with valid `links` and `meta`.
 - An empty table returns an empty data set with a valid response structure.
 
 **Show**
@@ -404,8 +404,11 @@ Never assert or rely on filesystem operations rolling back with a database trans
 
 ## 13. Localization Testing
 
-- Include at least one test verifying the approved `SetLocale` middleware behavior:
-  - `Accept-Language: ar` produces the Arabic behavior or translated content.
+- The default project has no `lang` directory: Feature Tests assert the English literal messages directly (the scaffold-installed Auth module tests show the approved pattern), and no test may depend on `__('messages.*')` keys.
+- Include at least one test verifying the approved `SetLocale` middleware behavior in the default project:
+  - The application locale stays `en` for any `Accept-Language` header — supported, unsupported, or missing — because the middleware's supported-language list contains only `['en']`.
+- When the project explicitly requested additional languages, verify the generated localization:
+  - For every requested locale, `Accept-Language: {locale}` produces that language's behavior or translated content.
   - An unsupported or missing header falls back to `en`.
 - When the project uses translated validation or business messages, verify that error messages respect the requested locale.
 

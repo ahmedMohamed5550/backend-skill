@@ -250,7 +250,7 @@ Document:
 - Response structure.
 - Returned data fields.
 - Field data types.
-- Pagination structure when applicable.
+- For List endpoints, the paginator structure nested inside `data` (`data`, `links`, `meta`).
 
 Provide a realistic JSON example matching the actual API Resource and `ApiResponseTrait`.
 
@@ -258,8 +258,7 @@ The response MUST follow the approved API response structure:
 
 - `message`
 - `status_code`
-- `data`
-- `pagination` only when applicable.
+- `data` — for List endpoints it nests Laravel's paginator structure (`data`, `links`, `meta`).
 
 Do not invent response fields or return structures.
 
@@ -393,7 +392,7 @@ Use the approved parameters:
 
 Document allowed sorting columns and accepted sorting directions based on the actual implementation.
 
-Explain how pagination metadata is returned in the API response.
+Explain how pagination metadata is returned inside the response's `data.meta` field, alongside the nested `data.data` records and `data.links`.
 
 Do not invent alternative parameter names or defaults.
 

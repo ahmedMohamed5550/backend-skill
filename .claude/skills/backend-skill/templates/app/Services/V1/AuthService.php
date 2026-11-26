@@ -35,6 +35,12 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
  * Password Reset and Email Verification). No token logic is reimplemented
  * here: the broker hashes and expires reset tokens, and the framework signs
  * and expires the verification link.
+ *
+ * The default project carries no translation files: API and authentication
+ * messages are handled here directly as English literals
+ * (references/localization.md). When the project requirements explicitly
+ * request additional languages, these literals become translation-key calls
+ * backed by lang/en/messages.php and lang/{locale}/messages.php.
  */
 class AuthService
 {
@@ -83,7 +89,7 @@ class AuthService
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
             throw ValidationException::withMessages([
-                'email' => __('messages.invalid_credentials'),
+                'email' => 'These credentials do not match our records.',
             ]);
         }
 
@@ -100,7 +106,7 @@ class AuthService
             // authorization_code grant, or a redirect URI mismatch: the
             // expected business failure of the login request.
             throw ValidationException::withMessages([
-                'client_id' => __('messages.invalid_client'),
+                'client_id' => 'The provided client or redirect URI is invalid.',
             ]);
         }
     }
@@ -159,7 +165,7 @@ class AuthService
         // The native throttle seconds come from auth.passwords.users.
         throw new TooManyRequestsHttpException(
             (int) config('auth.passwords.users.throttle', 60),
-            __('messages.rate_limited'),
+            'Too many attempts. Please try again later.',
         );
     }
 
@@ -200,7 +206,7 @@ class AuthService
             // (unknown address): the expected business failure of the
             // reset request.
             throw ValidationException::withMessages([
-                'email' => __('messages.invalid_reset_token'),
+                'email' => 'This password reset token is invalid or has expired.',
             ]);
         }
     }
@@ -220,7 +226,7 @@ class AuthService
     {
         if ($user->hasVerifiedEmail()) {
             throw ValidationException::withMessages([
-                'email' => __('messages.email_already_verified'),
+                'email' => 'The email address is already verified.',
             ]);
         }
 
@@ -250,7 +256,7 @@ class AuthService
 
         if (! hash_equals(sha1($user->getEmailForVerification()), $hash)) {
             throw ValidationException::withMessages([
-                'hash' => __('messages.invalid_verification_link'),
+                'hash' => 'This verification link is invalid or has expired.',
             ]);
         }
 

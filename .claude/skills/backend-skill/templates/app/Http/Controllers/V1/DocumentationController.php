@@ -64,7 +64,7 @@ class DocumentationController extends Controller
             $path = base_path('docs/API_DOCUMENTATION.md');
 
             if (! is_file($path)) {
-                return $this->apiResponse(__('messages.not_found'), 404);
+                return $this->apiResponse('The requested resource was not found.', 404);
             }
 
             $documentation = file_get_contents($path);
@@ -86,7 +86,7 @@ class DocumentationController extends Controller
         } catch (\Throwable $exception) {
             Log::error('Failed to serve API documentation.', ['error' => $exception->getMessage()]);
 
-            return $this->apiResponse(__('messages.server_error'), 500);
+            return $this->apiResponse('An unexpected error occurred.', 500);
         }
     }
 

@@ -146,8 +146,6 @@ mkdir -p \
     "$PROJECT_PATH/database/factories/V1" \
     "$PROJECT_PATH/tests" \
     "$PROJECT_PATH/tests/Feature/V1" \
-    "$PROJECT_PATH/lang/en" \
-    "$PROJECT_PATH/lang/ar" \
     "$PROJECT_PATH/routes/v1"
 cp "$TEMPLATES_DIR/composer.json"                       "$PROJECT_PATH/composer.json"
 cp "$TEMPLATES_DIR/bootstrap/app.php"                   "$PROJECT_PATH/bootstrap/app.php"
@@ -161,8 +159,6 @@ cp "$TEMPLATES_DIR/app/Helpers/Helpers.php"             "$PROJECT_PATH/app/Helpe
 cp "$TEMPLATES_DIR/app/Traits/ApiResponseTrait.php"     "$PROJECT_PATH/app/Traits/ApiResponseTrait.php"
 cp "$TEMPLATES_DIR/app/Http/Middleware/SetLocale.php"   "$PROJECT_PATH/app/Http/Middleware/SetLocale.php"
 cp "$TEMPLATES_DIR/app/Http/Controllers/Controller.php" "$PROJECT_PATH/app/Http/Controllers/Controller.php"
-cp "$TEMPLATES_DIR/lang/en/messages.php"                "$PROJECT_PATH/lang/en/messages.php"
-cp "$TEMPLATES_DIR/lang/ar/messages.php"                "$PROJECT_PATH/lang/ar/messages.php"
 cp "$TEMPLATES_DIR/routes/api1.php"                     "$PROJECT_PATH/routes/api1.php"
 cp "$TEMPLATES_DIR/routes/documentation.php"            "$PROJECT_PATH/routes/v1/documentation.php"
 cp "$TEMPLATES_DIR/routes/v1/auth.php"                  "$PROJECT_PATH/routes/v1/auth.php"
@@ -313,15 +309,19 @@ test ! -f "$PROJECT_PATH/config/fortify.php" \
     echo "ERROR: Fortify is not part of the approved architecture; remove laravel/fortify from composer.json and delete config/fortify.php — its emailVerification feature would hijack the verification.verify route name." >&2
     exit 1
 }
-# Password reset and email verification message keys (references/
-# localization.md): en and ar carry the localized flow messages.
-for MESSAGE_KEY in registered password_reset_link_sent password_reset_successfully invalid_reset_token email_verification_sent email_already_verified invalid_verification_link email_verified_successfully; do
-    grep -qF "'$MESSAGE_KEY'" "$PROJECT_PATH/lang/en/messages.php" \
-        && grep -qF "'$MESSAGE_KEY'" "$PROJECT_PATH/lang/ar/messages.php" || {
-        echo "ERROR: the '$MESSAGE_KEY' message key is missing from lang/en/messages.php or lang/ar/messages.php." >&2
-        exit 1
-    }
-done
+# Localization (references/localization.md): the default project carries no
+# lang directory and no translation files — API and authentication messages
+# are inline English literals in the implementation. The lang structure is
+# generated only when the project requirements explicitly request additional
+# languages.
+test ! -e "$PROJECT_PATH/lang" || {
+    echo "ERROR: the default project must not contain a lang directory (references/localization.md); remove it — translation files are generated only for explicitly requested additional languages." >&2
+    exit 1
+}
+grep -rqF "__('messages." "$PROJECT_PATH/app" "$PROJECT_PATH/bootstrap" "$PROJECT_PATH/tests" && {
+    echo "ERROR: the default project must not depend on __('messages.*') translation keys (references/localization.md); handle the messages directly in the implementation." >&2
+    exit 1
+}
 # Passport route hardening (references/authentication.md, Passport route
 # hardening): automatic routes disabled, single manually registered endpoint.
 grep -qF "Passport::ignoreRoutes" "$PROJECT_PATH/app/Providers/AppServiceProvider.php" \

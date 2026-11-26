@@ -50,7 +50,7 @@ class RegisterTest extends TestCase
         $response = $this->postJson('/api/v1/auth/register', $this->registerPayload())
             ->assertStatus(201)
             ->assertJsonPath('status_code', 201)
-            ->assertJsonPath('message', __('messages.registered'))
+            ->assertJsonPath('message', 'Account registered successfully. A verification email has been sent to your email address.')
             ->assertJsonPath('data.name', 'Jane Doe')
             ->assertJsonPath('data.email', 'jane@example.local')
             ->assertJsonPath('data.email_verified_at', null);

@@ -18,7 +18,7 @@ class SetLocale
         ));
 
         App::setLocale(
-            in_array($language, ['ar', 'en'], true) ? $language : 'en'
+            in_array($language, ['en'], true) ? $language : 'en'
         );
 
         return $next($request);

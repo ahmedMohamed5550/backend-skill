@@ -53,12 +53,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // stay unchanged.
         $middleware->priority([
             // Localization must resolve before any middleware that can
-            // terminate the request with a localized envelope (auth 401,
+            // terminate the request with an envelope message (auth 401,
             // throttled 429): the priority list sorts every listed
             // middleware ahead of the unlisted ones, so SetLocale — which
             // only rides along in the api group — has to be first, or the
-            // auth and throttle middlewares would answer in the default
-            // locale.
+            // auth and throttle middlewares would answer before the
+            // request's locale is applied.
             SetLocale::class,
             \Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
             \Illuminate\Cookie\Middleware\EncryptCookies::class,
@@ -74,6 +74,11 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Default projects carry no translation files: the envelope messages
+        // are English literals handled here directly
+        // (references/localization.md). When the project requirements
+        // explicitly request additional languages, these literals become
+        // translation-key calls backed by lang/{locale}/messages.php.
         // The throttled /oauth/token endpoint lives outside the api/v1
         // prefix; its exceptions (most importantly the 429 rate-limit
         // response) must render as JSON for API clients exactly like the
@@ -89,7 +94,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
-                'message' => __('messages.validation_failed'),
+                'message' => 'The provided data is invalid.',
                 'status_code' => 422,
                 'data' => $exception->errors(),
             ], 422);
@@ -101,7 +106,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
-                'message' => __('messages.unauthorized'),
+                'message' => 'You are not authorized to perform this action.',
                 'status_code' => 401,
                 'data' => [],
             ], 401);
@@ -113,7 +118,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
-                'message' => __('messages.unauthorized'),
+                'message' => 'You are not authorized to perform this action.',
                 'status_code' => 403,
                 'data' => [],
             ], 403);
@@ -124,14 +129,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // verification route throws InvalidSignatureException for an
         // expired (60 minutes) or tampered verification link. The native
         // exception's English message must not leak; the approved envelope
-        // with the localized verification-link message answers instead.
+        // with the verification-link message answers instead.
         $exceptions->render(function (InvalidSignatureException $exception, Request $request) {
             if (! ($request->is('api/*') || $request->is('oauth/*') || $request->expectsJson())) {
                 return null;
             }
 
             return response()->json([
-                'message' => __('messages.invalid_verification_link'),
+                'message' => 'This verification link is invalid or has expired.',
                 'status_code' => 403,
                 'data' => [],
             ], 403);
@@ -147,13 +152,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
                 // Rate-limit rejections (HTTP 429 from the throttle
                 // middleware, references/api-standards.md, Rate Limiting)
-                // answer with the localized rate_limited message, and their
-                // throttle headers (Retry-After, X-RateLimit-*) must reach
+                // answer with the rate-limit message, and their throttle
+                // headers (Retry-After, X-RateLimit-*) must reach
                 // the client so it knows when to retry. getHeaders() returns
                 // an empty array for every other HttpException.
                 $message = $statusCode === 429
-                    ? __('messages.rate_limited')
-                    : ($exception->getMessage() ?: __('messages.not_found'));
+                    ? 'Too many attempts. Please try again later.'
+                    : ($exception->getMessage() ?: 'The requested resource was not found.');
 
                 return response()->json([
                     'message' => $message,
@@ -163,7 +168,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
-                'message' => __('messages.server_error'),
+                'message' => 'An unexpected error occurred.',
                 'status_code' => 500,
                 'data' => [],
             ], 500);

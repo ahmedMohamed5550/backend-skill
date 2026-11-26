@@ -63,9 +63,9 @@ Do not re-enable Passport's automatic routes, do not register any additional OAu
 - The Auth module endpoints (`register`, `login`, `logout`, `me`, `forgot-password`, `reset-password`, `email/verify/{uuid}/{hash}`, `email/resend`) use the approved `apiResponse()` envelope.
 - Passport's `/oauth/token` endpoint is **not** wrapped in the envelope: its success and error payloads follow the OAuth 2.0 wire format — success `{token_type, expires_in, access_token, refresh_token}` and errors `{error, error_description, hint?}` with HTTP 400 (`invalid_grant`, `invalid_request`) or 401 (`invalid_client`). This is the approved exception to the single-envelope rule; do not intercept or transform `/oauth/token` responses to force the envelope shape.
 - Failed credential verification and an invalid `client_id`/`redirect_uri` at `login` both return the approved 422 envelope (the `AuthService` template converts league's `OAuthServerException` for the expected client failures).
-- `register` answers **201** with `messages.registered` and the new user's public profile (`uuid`, `name`, `email`, `email_verified_at: null`); validation failures — including the duplicate-email `unique` rule — answer the standard 422 envelope. Registration answers 422 for an existing address; unlike the password reset flow, it never hides whether an account exists (registration requires a unique address by definition).
-- `forgot-password` always answers the identical neutral 200 (its message is the same for registered and unknown addresses); the native broker throttle surfaces as 429 with `Retry-After`; a consumed/invalid reset token answers 422 with `messages.invalid_reset_token`.
-- The verification route answers 200 with `messages.email_verified_successfully` (idempotent for already verified accounts), 403 for expired/tampered signatures (`messages.invalid_verification_link`, rendered by the central `InvalidSignatureException` handler in `bootstrap/app.php`), 404 for an unknown uuid, and 422 for a signature-valid link whose hash does not match the addressed user's email. `email/resend` answers 200 with `messages.email_verification_sent`, and 422 with `messages.email_already_verified` when the account is already verified.
+- `register` answers **201** with the `Account registered successfully. A verification email has been sent to your email address.` message and the new user's public profile (`uuid`, `name`, `email`, `email_verified_at: null`); validation failures — including the duplicate-email `unique` rule — answer the standard 422 envelope. Registration answers 422 for an existing address; unlike the password reset flow, it never hides whether an account exists (registration requires a unique address by definition).
+- `forgot-password` always answers the identical neutral 200 (its message is the same for registered and unknown addresses); the native broker throttle surfaces as 429 with `Retry-After`; a consumed/invalid reset token answers 422 with the `This password reset token is invalid or has expired.` message.
+- The verification route answers 200 with the `The email address has been verified successfully.` message (idempotent for already verified accounts), 403 for expired/tampered signatures (the `This verification link is invalid or has expired.` message, rendered by the central `InvalidSignatureException` handler in `bootstrap/app.php`), 404 for an unknown uuid, and 422 for a signature-valid link whose hash does not match the addressed user's email. `email/resend` answers 200 with the `Verification email sent successfully.` message, and 422 with the `The email address is already verified.` message when the account is already verified.
 
 ### Token lifetimes
 
@@ -96,7 +96,7 @@ Every project ships the Register endpoint as part of the default Auth module. It
 
 ### Approved flow
 
-1. **`POST /api/v1/auth/register`** (public, `throttle:auth`) — `RegisterRequest` validates `name`, `email` (`required`, `email`, `max:255`, `unique:users`), and `password` (`min:8`, `confirmed` through `password_confirmation`; the same shape `ResetPasswordRequest` accepts). `AuthService::register()` creates the user inside `DB::transaction()` — the model's `hashed` cast hashes the plain password and the `creating` hook generates the uuid — and then calls the native `$user->sendEmailVerificationNotification()` **after the transaction commits** (the `VerifyEmail` notification is queued, so it must never fire for an uncommitted row). The endpoint answers **201** with the new user's public profile (`uuid`, `name`, `email`, `email_verified_at: null`) and the `messages.registered` message.
+1. **`POST /api/v1/auth/register`** (public, `throttle:auth`) — `RegisterRequest` validates `name`, `email` (`required`, `email`, `max:255`, `unique:users`), and `password` (`min:8`, `confirmed` through `password_confirmation`; the same shape `ResetPasswordRequest` accepts). `AuthService::register()` creates the user inside `DB::transaction()` — the model's `hashed` cast hashes the plain password and the `creating` hook generates the uuid — and then calls the native `$user->sendEmailVerificationNotification()` **after the transaction commits** (the `VerifyEmail` notification is queued, so it must never fire for an uncommitted row). The endpoint answers **201** with the new user's public profile (`uuid`, `name`, `email`, `email_verified_at: null`) and the `Account registered successfully. A verification email has been sent to your email address.` message.
 2. The verification email is the framework's native `VerifyEmail` notification carrying the signed link of the Email Verification flow below — registration is the flow's first and automatic sender.
 3. Registration does **not** authenticate the caller and issues no tokens: clients log in afterwards through the unchanged login + PKCE flow (Token Lifecycle above). Email verification does not gate login.
 
@@ -116,7 +116,7 @@ Every project ships Email Verification and Resend Verification Email as part of 
 
 ### Approved flow
 
-1. **`GET /api/v1/auth/email/verify/{uuid}/{hash}`** — the handler the framework's `VerifyEmail` notification builds its signed URL for. The route is registered in `routes/v1/auth.php` with the native route name **`verification.verify`** and Laravel's `signed` middleware (`ValidateSignature`), and it is public: the signature **is** the authorization, exactly like Laravel's own verification flow, because an email client cannot present a Bearer token. The link addresses the user by **uuid** — public API identifiers are UUIDs, never database ids — so the approved `AppServiceProvider` template registers `VerifyEmail::createUrlUsing()` (Laravel's official URL customization hook, the same mechanism as the `ResetPassword::createUrlUsing()` registration of the Password Reset flow): it builds the same `URL::temporarySignedRoute('verification.verify', ...)` URL with the `uuid` route parameter instead of the framework default's database `id`, while everything else stays native — the same notification, the 60-minute expiry from `auth.verification.expire`, and the `sha1(email)` hash. Do not remove that registration: without it, `URL::temporarySignedRoute()` throws a `MissingRouteParameterException` against the `{uuid}` route the moment a notification is mailed. The `signed` middleware rejects an expired link (60 minutes) or a tampered one with 403; the central exception handler renders it as the approved envelope with the localized `messages.invalid_verification_link`. The `AuthService::verifyEmail()` resolves the user by uuid (`User::where('uuid', $uuid)->firstOrFail()`), then checks `hash_equals(sha1($user->getEmailForVerification()), $hash)` (mirroring the framework's own `EmailVerificationRequest` validation), and calls `markEmailAsVerified()` inside `DB::transaction()` — stamping `email_verified_at` and dispatching the native `Verified` event. Following the link again stays idempotently successful.
+1. **`GET /api/v1/auth/email/verify/{uuid}/{hash}`** — the handler the framework's `VerifyEmail` notification builds its signed URL for. The route is registered in `routes/v1/auth.php` with the native route name **`verification.verify`** and Laravel's `signed` middleware (`ValidateSignature`), and it is public: the signature **is** the authorization, exactly like Laravel's own verification flow, because an email client cannot present a Bearer token. The link addresses the user by **uuid** — public API identifiers are UUIDs, never database ids — so the approved `AppServiceProvider` template registers `VerifyEmail::createUrlUsing()` (Laravel's official URL customization hook, the same mechanism as the `ResetPassword::createUrlUsing()` registration of the Password Reset flow): it builds the same `URL::temporarySignedRoute('verification.verify', ...)` URL with the `uuid` route parameter instead of the framework default's database `id`, while everything else stays native — the same notification, the 60-minute expiry from `auth.verification.expire`, and the `sha1(email)` hash. Do not remove that registration: without it, `URL::temporarySignedRoute()` throws a `MissingRouteParameterException` against the `{uuid}` route the moment a notification is mailed. The `signed` middleware rejects an expired link (60 minutes) or a tampered one with 403; the central exception handler renders it as the approved envelope with the `This verification link is invalid or has expired.` message. The `AuthService::verifyEmail()` resolves the user by uuid (`User::where('uuid', $uuid)->firstOrFail()`), then checks `hash_equals(sha1($user->getEmailForVerification()), $hash)` (mirroring the framework's own `EmailVerificationRequest` validation), and calls `markEmailAsVerified()` inside `DB::transaction()` — stamping `email_verified_at` and dispatching the native `Verified` event. Following the link again stays idempotently successful.
 2. **`POST /api/v1/auth/email/resend`** (`auth:api`, `throttle:email_resend`) — calls the native `$user->sendEmailVerificationNotification()`, which mails the framework's `VerifyEmail` notification untouched (the route named `verification.verify` is exactly the name the notification builds its `URL::temporarySignedRoute` URL for — through the `createUrlUsing()` hook — so no custom notification is needed). Resending for an already verified account is a 422 business failure, not a silent success.
 3. **`GET /api/v1/auth/me`** includes `email_verified_at` (null until verified) so clients know the verification status.
 
@@ -155,7 +155,7 @@ Hard requirements:
 
 - Do not generate, store, or transform tokens for social login outside this flow: no `User::createToken()`, no manual JWT encoding, no custom grant. The same `issueAuthorizationCode()` mechanics inside `AuthService` remain the single token issuance path for every login method.
 - The social login response contract is identical to the login response (`data.code`), and the social login endpoint runs under the same `throttle:auth` limiter.
-- Add the social login failure messages to `lang/en/messages.php` and `lang/ar/messages.php`, and document the endpoints in Swagger and `docs/API_DOCUMENTATION.md` like any other Auth endpoint.
+- Handle the social login failure messages directly in the implementation as English literals (the snippets below show the exact texts). When the project explicitly requested additional languages, also add the same keys to the generated `lang/en/messages.php` and `lang/{locale}/messages.php` files and convert the literals to `__('messages.*')` calls (references/localization.md, Adding Additional Languages), and document the endpoints in Swagger and `docs/API_DOCUMENTATION.md` like any other Auth endpoint.
 
 ### Provider tokens: access tokens and ID tokens
 
@@ -235,7 +235,7 @@ The scaffold never installs or copies anything Social Login related, and `templa
             } catch (\Throwable $e) {
                 Log::error('Social login failed: '.$e->getMessage());
 
-                return $this->apiResponse(__('messages.server_error'), 500, []);
+                return $this->apiResponse('An unexpected error occurred.', 500, []);
             }
         }
 
@@ -250,7 +250,7 @@ The scaffold never installs or copies anything Social Login related, and `templa
             } catch (\Throwable $e) {
                 Log::error('Provider link failed: '.$e->getMessage());
 
-                return $this->apiResponse(__('messages.server_error'), 500, []);
+                return $this->apiResponse('An unexpected error occurred.', 500, []);
             }
         }
 
@@ -265,7 +265,7 @@ The scaffold never installs or copies anything Social Login related, and `templa
             } catch (\Throwable $e) {
                 Log::error('Provider unlink failed: '.$e->getMessage());
 
-                return $this->apiResponse(__('messages.server_error'), 500, []);
+                return $this->apiResponse('An unexpected error occurred.', 500, []);
             }
         }
 
@@ -290,7 +290,7 @@ The scaffold never installs or copies anything Social Login related, and `templa
                 );
             } catch (OAuthServerException) {
                 throw ValidationException::withMessages([
-                    'client_id' => __('messages.invalid_client'),
+                    'client_id' => 'The provided client or redirect URI is invalid.',
                 ]);
             }
         }
@@ -333,7 +333,7 @@ The scaffold never installs or copies anything Social Login related, and `templa
 
             if (! $payload) {
                 throw ValidationException::withMessages([
-                    'id_token' => __('messages.invalid_provider_token'),
+                    'id_token' => 'The provider token is invalid.',
                 ]);
             }
 
@@ -364,7 +364,7 @@ The scaffold never installs or copies anything Social Login related, and `templa
 
             if ($existingUser && ! $identity['email_verified']) {
                 throw ValidationException::withMessages([
-                    'email' => __('messages.social_email_not_verified'),
+                    'email' => 'This email is already registered. Log in with your password and link the account from your profile.',
                 ]);
             }
 
@@ -405,7 +405,7 @@ The scaffold never installs or copies anything Social Login related, and `templa
                 }
 
                 throw ValidationException::withMessages([
-                    'provider' => __('messages.social_account_already_linked'),
+                    'provider' => 'This provider identity is already linked to another account.',
                 ]);
             }
 
@@ -433,26 +433,20 @@ The scaffold never installs or copies anything Social Login related, and `templa
 
             if (is_null($user->password) && ! $hasOtherIdentity) {
                 throw ValidationException::withMessages([
-                    'provider' => __('messages.social_unlink_blocked'),
+                    'provider' => 'You cannot unlink your last login method.',
                 ]);
             }
 
             DB::transaction(fn () => $socialAccount->delete());
         }
 
-8. Add the failure messages to `lang/en/messages.php` and `lang/ar/messages.php`:
+8. The failure messages are handled directly in the implementation as English literals (the snippets above show the exact texts). Only when the project explicitly requested additional languages, also add the same keys to the generated `lang/en/messages.php` and `lang/{locale}/messages.php` files and convert the literals to `__('messages.*')` calls (references/localization.md, Adding Additional Languages):
 
-        // lang/en/messages.php
+        // lang/en/messages.php (only when additional languages were requested)
         'invalid_provider_token' => 'The provider token is invalid.',
         'social_email_not_verified' => 'This email is already registered. Log in with your password and link the account from your profile.',
         'social_account_already_linked' => 'This provider identity is already linked to another account.',
         'social_unlink_blocked' => 'You cannot unlink your last login method.',
-
-        // lang/ar/messages.php
-        'invalid_provider_token' => 'رمز المزود غير صالح.',
-        'social_email_not_verified' => 'هذا البريد الإلكتروني مسجل بالفعل. سجّل الدخول بكلمة المرور ثم اربط الحساب من ملفك الشخصي.',
-        'social_account_already_linked' => 'هوية المزود هذه مرتبطة بالفعل بحساب آخر.',
-        'social_unlink_blocked' => 'لا يمكنك إزالة طريقة الدخول الأخيرة الخاصة بك.',
 
 9. Document the endpoints: Swagger annotations on the new `AuthController` actions, `docs/API_DOCUMENTATION.md`, `docs/DATABASE_DOCUMENTATION.md` (the `social_accounts` table), and `docs/IMPLEMENTATION_PLAN.md`.
 10. Copy the test template to `tests/Feature/V1/SocialLoginTest.php`, adapt it to the requested providers and the project's default role, and run the complete suite until all tests pass.

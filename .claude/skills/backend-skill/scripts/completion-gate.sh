@@ -358,21 +358,21 @@ grep -qF "throttle:auth" "$PROJECT_PATH/routes/v1/auth.php" || {
     fail "CHECK 07" "routes/v1/auth.php does not apply throttle:auth to the login endpoint."
     STANDARDS_OK=0
 }
-grep -qF "'rate_limited'" "$PROJECT_PATH/lang/en/messages.php" \
-    && grep -qF "'rate_limited'" "$PROJECT_PATH/lang/ar/messages.php" || {
-    fail "CHECK 07" "the rate_limited message key is missing from lang/en/messages.php or lang/ar/messages.php."
-    STANDARDS_OK=0
-}
-# Password reset and email verification message keys (references/
-# localization.md; references/authentication.md, Password Reset and Email
-# Verification): en and ar carry the localized flow messages.
-for MESSAGE_KEY in password_reset_link_sent password_reset_successfully invalid_reset_token email_verification_sent email_already_verified invalid_verification_link email_verified_successfully; do
-    grep -qF "'$MESSAGE_KEY'" "$PROJECT_PATH/lang/en/messages.php" \
-        && grep -qF "'$MESSAGE_KEY'" "$PROJECT_PATH/lang/ar/messages.php" || {
-        fail "CHECK 07" "the '$MESSAGE_KEY' message key is missing from lang/en/messages.php or lang/ar/messages.php."
+# Localization (references/localization.md): the default project carries no
+# lang directory and no translation files, and no __('messages.*') dependency.
+# A project whose requirements explicitly requested additional languages
+# carries the generated lang/{locale} structure instead.
+if [ -d "$PROJECT_PATH/lang" ]; then
+    ls "$PROJECT_PATH/lang" | grep -qvE '^(en|ar|fr|[a-z]{2}(-[A-Z]{2})?)$' && {
+        fail "CHECK 07" "the lang directory contains an invalid locale folder (expected BCP 47 short codes such as en, ar, fr)."
         STANDARDS_OK=0
     }
-done
+else
+    grep -rqF "__('messages." "$PROJECT_PATH/app" "$PROJECT_PATH/bootstrap" "$PROJECT_PATH/tests" && {
+        fail "CHECK 07" "the project depends on __('messages.*') translation keys without a lang directory (references/localization.md)."
+        STANDARDS_OK=0
+    }
+fi
 # Native password reset (references/authentication.md, Password Reset): the
 # broker is the only reset implementation and the two reset requests ship.
 grep -qF "Password::sendResetLink" "$PROJECT_PATH/app/Services/V1/AuthService.php" \

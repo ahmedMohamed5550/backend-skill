@@ -136,7 +136,7 @@ class AuthController extends Controller
         try {
             $user = $this->authService->register($request->validated());
 
-            return $this->apiResponse(__('messages.registered'), 201, [
+            return $this->apiResponse('Account registered successfully. A verification email has been sent to your email address.', 201, [
                 'uuid' => $user->uuid,
                 'name' => $user->name,
                 'email' => $user->email,
@@ -147,7 +147,7 @@ class AuthController extends Controller
         } catch (\Throwable $e) {
             Log::error('Registration failed: '.$e->getMessage());
 
-            return $this->apiResponse(__('messages.server_error'), 500, []);
+            return $this->apiResponse('An unexpected error occurred.', 500, []);
         }
     }
 
@@ -210,7 +210,7 @@ class AuthController extends Controller
         } catch (\Throwable $e) {
             Log::error('Login failed: '.$e->getMessage());
 
-            return $this->apiResponse(__('messages.server_error'), 500, []);
+            return $this->apiResponse('An unexpected error occurred.', 500, []);
         }
     }
 
@@ -248,7 +248,7 @@ class AuthController extends Controller
         } catch (\Throwable $e) {
             Log::error('Logout failed: '.$e->getMessage());
 
-            return $this->apiResponse(__('messages.server_error'), 500, []);
+            return $this->apiResponse('An unexpected error occurred.', 500, []);
         }
     }
 
@@ -298,7 +298,7 @@ class AuthController extends Controller
         } catch (\Throwable $e) {
             Log::error('Profile retrieval failed: '.$e->getMessage());
 
-            return $this->apiResponse(__('messages.server_error'), 500, []);
+            return $this->apiResponse('An unexpected error occurred.', 500, []);
         }
     }
 
@@ -342,7 +342,7 @@ class AuthController extends Controller
         try {
             $this->authService->sendPasswordResetLink($request->validated());
 
-            return $this->apiResponse(__('messages.password_reset_link_sent'), 200, []);
+            return $this->apiResponse('If the email address is registered, a password reset link has been sent to it.', 200, []);
         } catch (ValidationException $e) {
             throw $e;
         } catch (HttpExceptionInterface $e) {
@@ -353,7 +353,7 @@ class AuthController extends Controller
         } catch (\Throwable $e) {
             Log::error('Password reset link request failed: '.$e->getMessage());
 
-            return $this->apiResponse(__('messages.server_error'), 500, []);
+            return $this->apiResponse('An unexpected error occurred.', 500, []);
         }
     }
 
@@ -400,13 +400,13 @@ class AuthController extends Controller
         try {
             $this->authService->resetPassword($request->validated());
 
-            return $this->apiResponse(__('messages.password_reset_successfully'), 200, []);
+            return $this->apiResponse('The password has been reset successfully.', 200, []);
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Throwable $e) {
             Log::error('Password reset failed: '.$e->getMessage());
 
-            return $this->apiResponse(__('messages.server_error'), 500, []);
+            return $this->apiResponse('An unexpected error occurred.', 500, []);
         }
     }
 
@@ -474,15 +474,15 @@ class AuthController extends Controller
         try {
             $this->authService->verifyEmail($uuid, $hash);
 
-            return $this->apiResponse(__('messages.email_verified_successfully'), 200, []);
+            return $this->apiResponse('The email address has been verified successfully.', 200, []);
         } catch (ValidationException $e) {
             throw $e;
         } catch (ModelNotFoundException) {
-            return $this->apiResponse(__('messages.not_found'), 404, []);
+            return $this->apiResponse('The requested resource was not found.', 404, []);
         } catch (\Throwable $e) {
             Log::error('Email verification failed: '.$e->getMessage());
 
-            return $this->apiResponse(__('messages.server_error'), 500, []);
+            return $this->apiResponse('An unexpected error occurred.', 500, []);
         }
     }
 
@@ -518,13 +518,13 @@ class AuthController extends Controller
         try {
             $this->authService->resendVerificationEmail($request->user());
 
-            return $this->apiResponse(__('messages.email_verification_sent'), 200, []);
+            return $this->apiResponse('Verification email sent successfully.', 200, []);
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Throwable $e) {
             Log::error('Verification email resend failed: '.$e->getMessage());
 
-            return $this->apiResponse(__('messages.server_error'), 500, []);
+            return $this->apiResponse('An unexpected error occurred.', 500, []);
         }
     }
 }

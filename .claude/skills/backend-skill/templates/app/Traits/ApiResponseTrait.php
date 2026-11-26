@@ -6,18 +6,12 @@ use Illuminate\Http\JsonResponse;
 
 trait ApiResponseTrait
 {
-    protected function apiResponse(string $message, int $status = 200, $data = [], $pagination = null): JsonResponse
+    protected function apiResponse(string $message, int $status = 200, $data = []): JsonResponse
     {
-        $response = [
+        return response()->json([
             'message' => $message,
             'status_code' => $status,
             'data' => $data,
-        ];
-
-        if ($pagination && request('all') != 1) {
-            $response['pagination'] = $pagination;
-        }
-
-        return response()->json($response, $status);
+        ], $status);
     }
 }

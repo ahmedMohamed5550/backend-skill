@@ -104,7 +104,7 @@ class PasswordResetTest extends TestCase
         $this->postJson('/api/v1/auth/forgot-password', ['email' => $this->user->email])
             ->assertOk()
             ->assertJsonPath('status_code', 200)
-            ->assertJsonPath('message', __('messages.password_reset_link_sent'));
+            ->assertJsonPath('message', 'If the email address is registered, a password reset link has been sent to it.');
 
         Notification::assertSentTo($this->user, ResetPassword::class);
     }
@@ -114,7 +114,7 @@ class PasswordResetTest extends TestCase
         $this->postJson('/api/v1/auth/forgot-password', ['email' => 'nobody@example.local'])
             ->assertOk()
             ->assertJsonPath('status_code', 200)
-            ->assertJsonPath('message', __('messages.password_reset_link_sent'));
+            ->assertJsonPath('message', 'If the email address is registered, a password reset link has been sent to it.');
 
         // No notification for an unknown address — and, critically, the
         // same success answer the registered address receives, so the
@@ -178,7 +178,7 @@ class PasswordResetTest extends TestCase
         $this->resetWith($token)
             ->assertOk()
             ->assertJsonPath('status_code', 200)
-            ->assertJsonPath('message', __('messages.password_reset_successfully'));
+            ->assertJsonPath('message', 'The password has been reset successfully.');
 
         // The database actually changed: the new password matches, the old
         // one does not, and the remember token was rotated (references/
@@ -214,7 +214,7 @@ class PasswordResetTest extends TestCase
         $this->resetWith('not-a-real-token')
             ->assertStatus(422)
             ->assertJsonPath('status_code', 422)
-            ->assertJsonPath('message', __('messages.validation_failed'));
+            ->assertJsonPath('message', 'The provided data is invalid.');
 
         // Nothing changed.
         $this->assertTrue(Hash::check('password', $this->user->fresh()->password));

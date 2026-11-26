@@ -392,6 +392,8 @@ Apply `orderBy()` before `paginate()`.
 
 The Service is responsible for preparing and executing list queries.
 
+Transform the paginated result through the module's List Resource with `Resource::collection($items)->response()->getData(true)` and pass the complete result as the `data` argument of `apiResponse()`. The outer `data` field must preserve Laravel's nested paginator structure (`data`, `links`, `meta`).
+
 Validate sorting columns against allowed columns and restrict sort direction to `asc` or `desc`.
 
 ## 16. Helpers and Traits
@@ -405,16 +407,9 @@ Use the approved Helpers implementation and preserve its existing functions.
 The approved Helpers methods are:
 
 - `getBasicRequestParams(Request $request)`
-- `getLanguages()`
 - `getPagination()`
-- `ContextPagination()`
 - `getCurrentLang()`
 - `checkPermissions()`
-- `generateCacheKey()`
-- `getPaginationMeta()`
-- `isNullishFilterValue()`
-- `toNumericId()`
-- `toNumericIds()`
 
 Register only `app/Helpers/Helpers.php` in Composer `autoload.files`.
 
@@ -428,27 +423,20 @@ Follow `references/helpers-and-traits.md`.
 
 ## 17. Localization
 
-Every project must have Laravel localization structure ready.
+English (`en`) is the only default language of every generated project, and it is also the fallback locale.
 
-Supported languages:
+The default project contains no `lang` directory and no translation files. Default API and authentication messages are handled directly in their relevant implementation as English literals — never through `__('messages.*')` translation keys (the central exception handler and the Auth module templates show the approved pattern).
 
-- English (`en`).
-- Arabic (`ar`).
-
-Default language: `en`.
-
-Include translation files for both languages.
-
-Prepare the approved `SetLocale` middleware that:
+Localization stays available as an optional capability. Prepare the approved `SetLocale` middleware that:
 
 - Reads the `Accept-Language` header.
-- Uses the requested language if supported.
+- Uses the requested language if it is supported (a locale in the middleware's supported-language list, `['en']` by default).
 - Falls back to `en` otherwise.
 - Sets the Laravel application locale.
 
 Register the middleware in the API middleware group.
 
-Keep localization available by default; its usage depends on project requirements.
+Do not generate Arabic or any additional language unless the project requirements explicitly request it. Detect the requested languages only from the user's stated project requirements: generate exactly `en` plus every language the requirements explicitly name — never any other language. When the project explicitly requests additional languages, generate the required localization structure and translation files (`lang/en/messages.php` with the approved message keys plus `lang/{locale}/messages.php` per requested locale), convert the inline literals to `__('messages.*')` calls, add each requested locale to the supported-language list in the `SetLocale` middleware, keep `en` as the default and fallback locale, and cover the configuration, validation, and testing accordingly (see `references/localization.md`, Detecting Requested Languages and Adding Additional Languages).
 
 Follow `references/localization.md`.
 
@@ -485,7 +473,7 @@ Every project ships with the approved Laravel-native rate limiters (see `referen
 - The `email_resend` limiter guards `email/resend` through the `throttle:email_resend` middleware: 6 requests per minute and 30 per hour, keyed per authenticated user id.
 - The `POST /oauth/token` registration keeps Passport's own `throttle` middleware (60 requests per minute).
 - Limits are configured in `config/rate_limiting.php` and overridable per environment through the `RATE_LIMIT_*` variables the scaffold writes into `.env`.
-- Exceeding a limiter answers the approved envelope with HTTP 429, the localized `messages.rate_limited` message (`en` and `ar`), and the `Retry-After` / `X-RateLimit-*` headers.
+- Exceeding a limiter answers the approved envelope with HTTP 429, the rate-limit message handled by the central exception handler (`Too many attempts. Please try again later.` — localized only when the project explicitly requested additional languages), and the `Retry-After` / `X-RateLimit-*` headers.
 - Reserved, inert config keys for the future OTP limiters exist in `config/rate_limiting.php` (`otp_send_*`, `otp_verify_*`); attach them only when that optional feature is implemented and approved.
 
 Do not remove, weaken, or replace the approved rate limiters without explicit user approval.
@@ -619,8 +607,6 @@ Templates the scaffold copies automatically (do not copy them manually):
 - `templates/app/Traits/ApiResponseTrait.php`
 - `templates/app/Http/Middleware/SetLocale.php`
 - `templates/app/Http/Controllers/Controller.php`
-- `templates/lang/en/messages.php`
-- `templates/lang/ar/messages.php`
 - `templates/routes/api1.php`
 - `templates/routes/documentation.php`
 - `templates/routes/v1/auth.php`

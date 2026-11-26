@@ -100,7 +100,7 @@ class EmailVerificationTest extends TestCase
         $this->getJson($this->signedVerificationUrl($user))
             ->assertOk()
             ->assertJsonPath('status_code', 200)
-            ->assertJsonPath('message', __('messages.email_verified_successfully'));
+            ->assertJsonPath('message', 'The email address has been verified successfully.');
 
         // The database actually changed: email_verified_at is stamped
         // (references/testing.md §5.1, database state assertions).
@@ -134,7 +134,7 @@ class EmailVerificationTest extends TestCase
         $this->getJson($expired)
             ->assertStatus(403)
             ->assertJsonPath('status_code', 403)
-            ->assertJsonPath('message', __('messages.invalid_verification_link'));
+            ->assertJsonPath('message', 'This verification link is invalid or has expired.');
 
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
     }
@@ -219,7 +219,7 @@ class EmailVerificationTest extends TestCase
         $this->postJson('/api/v1/auth/email/resend', [], ['Authorization' => 'Bearer '.$token])
             ->assertOk()
             ->assertJsonPath('status_code', 200)
-            ->assertJsonPath('message', __('messages.email_verification_sent'));
+            ->assertJsonPath('message', 'Verification email sent successfully.');
 
         Notification::assertSentTo($user, VerifyEmail::class);
     }

@@ -381,7 +381,7 @@ class AuthTest extends TestCase
         $this->postJson('/oauth/token', $payload)
             ->assertStatus(429)
             ->assertJsonPath('status_code', 429)
-            ->assertJsonPath('message', __('messages.rate_limited'))
+            ->assertJsonPath('message', 'Too many attempts. Please try again later.')
             ->assertHeader('Retry-After');
     }
 

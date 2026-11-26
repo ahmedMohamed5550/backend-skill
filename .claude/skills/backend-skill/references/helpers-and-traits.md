@@ -9,16 +9,9 @@
 
 ## Approved Methods
 - `getBasicRequestParams(Request $request)`
-- `getLanguages()`
 - `getPagination()`
-- `ContextPagination()`
 - `getCurrentLang()`
 - `checkPermissions($permission, $role)`
-- `generateCacheKey(Request $request, $data, $isPublic = false)`
-- `getPaginationMeta($items, $count)`
-- `isNullishFilterValue(mixed $value)`
-- `toNumericId(mixed $value)`
-- `toNumericIds(mixed $value)`
 
 ## API Response Trait
 - Location: `app/Traits/ApiResponseTrait.php`

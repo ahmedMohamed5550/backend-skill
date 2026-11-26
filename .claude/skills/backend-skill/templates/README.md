@@ -103,4 +103,6 @@ Token lifetimes are configured in `config/oauth.php` (`OAUTH_ACCESS_TOKEN_EXPIRE
 
 ## Localization
 
-The API supports `en` (default) and `ar` through the `Accept-Language` header.
+`en` is the only default language and always the fallback locale. The project ships no `lang` directory and no translation files: API and authentication messages are plain English strings handled directly in their implementation (the central exception handler and the Auth module). The `Accept-Language` header is still honored through the `SetLocale` middleware, but with its supported-language list `['en']` every request resolves to `en`.
+
+Additional languages are generated only when the project requirements explicitly request them: `lang/en/messages.php` plus `lang/{locale}/messages.php` per requested locale, the inline literals converted to `__('messages.*')` calls, and each requested locale added to the supported-language list in the `SetLocale` middleware (see `.claude/skills/backend-skill/references/localization.md` in the skill repository).

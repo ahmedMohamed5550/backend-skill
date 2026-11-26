@@ -38,14 +38,13 @@ The response structure must be:
     {
         "message": "Response message",
         "status_code": 200,
-        "data": {},
-        "pagination": {}
+        "data": {}
     }
 
 - `message` is required.
 - `status_code` is required.
 - `data` is required.
-- `pagination` is optional and must only be included when applicable.
+- The envelope carries exactly these three fields and no others.
 - Do not return alternative JSON response structures.
 
 ## Response Consistency
@@ -97,6 +96,13 @@ Approved parameters:
 - `sortDirection`: defaults to `desc`.
 
 Apply sorting using `orderBy($sortBy, $sortDirection)` and pagination using `paginate($perPage)`.
+
+Transform the paginated result through the module's List Resource and pass the complete result as the `data` argument of `apiResponse()`:
+
+    $items = $query->orderBy($sortBy, $sortDirection)->paginate($perPage);
+    return $this->apiResponse('{Module} retrieved successfully.', 200, ListResource::collection($items)->response()->getData(true));
+
+The outer `data` field must preserve Laravel's nested paginator structure: `data`, `links`, and `meta`.
 
 - Validate the requested sort column against an allowed-column whitelist.
 - Validate sort direction as either `asc` or `desc`.
@@ -167,7 +173,7 @@ Rules:
 
 ### 429 responses
 
-- Exceeding a limiter throws `ThrottleRequestsException`. The central exception handler renders the approved envelope — `{message, status_code: 429, data: []}` with the localized `messages.rate_limited` message (`en` and `ar`) — and keeps the `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers so clients know when to retry. Never drop these headers.
+- Exceeding a limiter throws `ThrottleRequestsException`. The central exception handler renders the approved envelope — `{message, status_code: 429, data: []}` with the rate-limit message `Too many attempts. Please try again later.` (handled inline by the handler; localized only when the project explicitly requested additional languages, see `references/localization.md`) — and keeps the `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers so clients know when to retry. Never drop these headers.
 - `/oauth/token` sits outside the `api/v1` prefix and keeps the OAuth wire format for grant errors; its 429 responses follow the same envelope and header behavior through the central handler (`bootstrap/app.php` renders `oauth/*` exceptions as JSON).
 
 ## Authentication Middleware Placement
