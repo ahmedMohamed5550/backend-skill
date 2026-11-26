@@ -40,7 +40,7 @@ Run the gate from the skill workspace: `bash scripts/completion-gate.sh <project
     php artisan key:generate
     ```
 
-    Default local database connection: `DB_CONNECTION=mysql`, `DB_HOST=127.0.0.1`, `DB_PORT=3306`, `DB_USERNAME=root`, empty `DB_PASSWORD`. The configured database name is `{{DB_NAME}}`.
+    Database connection: MySQL, configured in this project's `.env` (`DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`). The scaffold filled these from the Backend Skill's developer-specific `local.config.json` at setup time; `.env` is git-ignored and credentials are never committed. The configured database name is `{{DB_NAME}}`.
 
 3. Run the migrations:
 

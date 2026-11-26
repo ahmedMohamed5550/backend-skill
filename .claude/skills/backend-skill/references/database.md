@@ -72,6 +72,8 @@ Use Laravel's `$table->id()`, `$table->uuid('uuid')->unique()`, and `$table->tim
 - Database credentials must be configured through environment variables.
 - Never hardcode database credentials in application code.
 - The scaffold process must configure the generated project's `.env` automatically.
+- The developer's personal MySQL connection settings come from `local.config.json` at the skill root (template: `local.config.example.json`), loaded and validated through `scripts/local-config.sh`; the scaffold writes them into the generated project's `.env`.
+- Never hardcode database credentials in the skill, its scripts, its templates, or the generated project's committed files; if `local.config.json` is missing or invalid, report what is needed and stop instead of guessing credentials.
 
 
 ## Default Admin User Seeder

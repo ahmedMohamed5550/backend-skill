@@ -25,7 +25,7 @@ When asked to create a new project:
 
 1. Read this entire SKILL.md file.
 2. Read all relevant reference files.
-3. Read the configuration script and understand the configured workspace paths.
+3. Read the configuration script and understand the configured workspace paths, and load the local developer database configuration through `scripts/local-config.sh` (it validates `local.config.json` — see Default Database Configuration).
 4. Automatically derive the project name from the user's business requirements following the Database Naming rules in the Default Database Configuration section. Never ask the user to provide or confirm the project name or database name.
 5. Understand the business requirements.
 6. Prepare the standardized Laravel foundation and initialize the Laravel project using `scripts/scaffold.sh` (see Execution Guidance below).
@@ -50,6 +50,7 @@ Do not start business feature implementation before the standardized foundation 
 ### Execution Guidance
 
 - Use `scripts/scaffold.sh <project-folder-name> [database-name]` to perform the complete foundation setup: Laravel skeleton creation, approved template application, authentication and authorization configuration, `.env` configuration, Composer installation, MySQL database creation, package migration publishing, migrations, Passport preparation, and conditional seeding. The script implements the command order documented in `references/authentication.md`.
+- The scaffold validates the local developer database configuration (`local.config.json` at the skill root, template `local.config.example.json`) before doing any work and fails immediately with setup instructions when it is missing or invalid. When that happens, report the scaffold's message to the user exactly as printed — what to create and where — and stop; never guess or default database credentials.
 - Create `docs/IMPLEMENTATION_PLAN.md` as soon as the scaffold has created the project skeleton. The scaffold fails if the project folder already exists, so the plan cannot be written before it runs: create the `docs/` directory if it does not exist, then write the plan before creating any application files.
 - Run the scaffold script (or any long Composer command) in the background; Composer may take 15+ minutes on constrained machines.
 - Never run `php artisan serve` or any artisan command in a freshly scaffolded project while the scaffold's Composer step is still running: the skeleton has no `vendor/` directory until Composer install finishes, so artisan fails with "Failed opening required .../vendor/autoload.php". Wait for the scaffold to print `Scaffold complete` (or the Composer command to exit) before running the app or any artisan command, and tell the user to do the same.
@@ -253,15 +254,16 @@ MySQL is mandatory as the default database for every new backend project.
 - Normalize the project name to lowercase snake_case for the database name.
 - Never ask the user to provide or confirm the project name or database name.
 
-### Default Local Configuration
+### Local Developer Configuration
 
-Use the following default local connection:
+Every developer keeps their personal MySQL connection settings in `local.config.json` at the skill root; `local.config.example.json` is the approved template documenting the exact structure:
 
-- `DB_CONNECTION=mysql`
-- `DB_HOST=127.0.0.1`
-- `DB_PORT=3306`
-- `DB_USERNAME=root`
-- `DB_PASSWORD=`
+- `db.host` — MySQL host (string).
+- `db.port` — MySQL port (integer).
+- `db.username` — MySQL user (string).
+- `db.password` — MySQL password (string; may be empty).
+
+`scripts/local-config.sh` loads and validates the file (through `scripts/read-local-config.php`) before any setup or run activity that needs the database. The scaffold writes the loaded values into the generated project's `.env` and uses them for database creation; migrations, seeders, tests, and every later artisan command in the generated project then run against the project's own `.env`.
 
 ### Configuration Rules
 
@@ -269,7 +271,10 @@ Use the following default local connection:
 - Automatically run the required migrations after database creation.
 - Do not ask the user for approval before creating the database or running migrations.
 - If the derived database name already exists and contains tables, stop and ask the user for an alternate database name before running any migrations. Never migrate into, drop, or overwrite a pre-existing database that the scaffold did not create.
-- If MySQL is unavailable or the credentials lack the required permissions, report the actual blocker and do not pretend setup succeeded.
+- If `local.config.json` is missing or invalid, report clearly what is needed — create it from `local.config.example.json` with the developer's real MySQL host, port, username, and password — and stop. Never guess credentials, never fall back to assumed defaults, and never invent or omit a password.
+- Never hardcode database credentials in the Skill, its scripts, its templates, or a generated project. The only permitted credential sources are the skill workspace's `local.config.json` and a generated project's own `.env` (which is git-ignored by Laravel).
+- Never copy `local.config.json` into a generated project, and never write its credential values into any committed file, including `README.md` or anything under `docs/`.
+- If MySQL is unavailable or the configured credentials lack the required permissions, report the actual blocker and do not pretend setup succeeded.
 
 ## 10. Database Transactions
 

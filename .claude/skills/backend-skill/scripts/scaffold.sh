@@ -75,12 +75,21 @@ set -euo pipefail
 #   [database-name]        optional; defaults to the project name converted to
 #                          lowercase snake_case.
 #
-# Workspace paths come from scripts/config.sh. Run this script in the
-# background: Composer install.
+# Workspace paths come from scripts/config.sh. MySQL credentials come from the
+# developer's local.config.json at the skill root (template:
+# local.config.example.json), loaded and validated through
+# scripts/local-config.sh before any work starts: a missing or invalid
+# configuration fails the scaffold immediately with setup instructions, and
+# credentials are never hardcoded or defaulted (SKILL.md, Default Database
+# Configuration). The loaded values are written into the generated project's
+# .env and used for database creation; migrations and seeders then run against
+# the project .env. Run this script in the background: Composer install.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=config.sh
 source "$SCRIPT_DIR/config.sh"
+# shellcheck source=local-config.sh
+source "$SCRIPT_DIR/local-config.sh"
 
 TEMPLATES_DIR="$SKILL_DIR/templates"
 
@@ -92,12 +101,24 @@ command -v composer >/dev/null 2>&1 || { echo "ERROR: composer not found on PATH
 command -v php >/dev/null 2>&1 || { echo "ERROR: php not found on PATH." >&2; exit 1; }
 command -v mysql >/dev/null 2>&1 || { echo "ERROR: mysql not found on PATH." >&2; exit 1; }
 
+# Local developer database configuration (SKILL.md, Default Database
+# Configuration): load and validate before any work starts. A missing or
+# invalid local.config.json exits with setup instructions instead of guessing
+# credentials. MYSQL_PWD carries the password to the mysql client (no
+# process-list exposure, no shell-escaping issues); it is only set when
+# non-empty so an empty password is passed as "no password".
+load_local_db_config
+if [ -n "$LOCAL_DB_PASSWORD" ]; then
+    export MYSQL_PWD="$LOCAL_DB_PASSWORD"
+fi
+MYSQL_CLIENT=(mysql -h "$LOCAL_DB_HOST" -P "$LOCAL_DB_PORT" -u "$LOCAL_DB_USERNAME")
+
 # Preflight: fail in seconds, before the 15+ minute Composer install.
-mysql -u root -e "SELECT 1;" >/dev/null 2>&1 || {
-    echo "ERROR: MySQL is not reachable at root@127.0.0.1:3306. Start MySQL/Laragon first." >&2
+"${MYSQL_CLIENT[@]}" -e "SELECT 1;" >/dev/null 2>&1 || {
+    echo "ERROR: MySQL is not reachable at ${LOCAL_DB_USERNAME}@${LOCAL_DB_HOST}:${LOCAL_DB_PORT} with the credentials from local.config.json. Start MySQL/Laragon first and verify the credentials against local.config.json (template: local.config.example.json)." >&2
     exit 1
 }
-EXISTING_TABLES="$(mysql -u root -N -B -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME';")"
+EXISTING_TABLES="$("${MYSQL_CLIENT[@]}" -N -B -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME';")"
 if [ "${EXISTING_TABLES:-0}" -gt 0 ]; then
     echo "ERROR: database '$DB_NAME' already exists with $EXISTING_TABLES tables." >&2
     echo "Re-run with an explicit database name: bash scaffold.sh $PROJECT_NAME <database-name>" >&2
@@ -339,18 +360,26 @@ grep -rEn 'App.Models.User(;|::)' \
 }
 
 echo "==> [3/9] Configuring .env for MySQL"
-# Match both uncommented (Laravel 13 skeleton ships DB_CONNECTION=sqlite live)
-# and commented-out ("# DB_...") defaults; Laravel env loading keeps the FIRST
-# occurrence, so values must be edited in place.
-sed -i -E \
-    -e "s/^APP_NAME=.*/APP_NAME=\"$PROJECT_NAME\"/" \
-    -e "s/^#?[[:space:]]*DB_CONNECTION=.*/DB_CONNECTION=mysql/" \
-    -e "s/^#?[[:space:]]*DB_HOST=.*/DB_HOST=127.0.0.1/" \
-    -e "s/^#?[[:space:]]*DB_PORT=.*/DB_PORT=3306/" \
-    -e "s/^#?[[:space:]]*DB_DATABASE=.*/DB_DATABASE=$DB_NAME/" \
-    -e "s/^#?[[:space:]]*DB_USERNAME=.*/DB_USERNAME=root/" \
-    -e "s/^#?[[:space:]]*DB_PASSWORD=.*/DB_PASSWORD=/" \
-    "$PROJECT_PATH/.env"
+# APP_NAME is a safe single-token value and stays in sed. The database block
+# comes from the validated local developer configuration (local.config.json,
+# SKILL.md, Default Database Configuration): write-env-db.php matches both
+# uncommented (Laravel 13 skeleton ships DB_CONNECTION=sqlite live) and
+# commented-out ("# DB_...") skeleton defaults, edits the first occurrence of
+# every key in place (Laravel env loading keeps the FIRST occurrence), and
+# handles password characters a sed replacement could not carry safely.
+sed -i -E -e "s/^APP_NAME=.*/APP_NAME=\"$PROJECT_NAME\"/" "$PROJECT_PATH/.env"
+DB_CONNECTION=mysql \
+DB_DATABASE="$DB_NAME" \
+DB_HOST="$LOCAL_DB_HOST" \
+DB_PORT="$LOCAL_DB_PORT" \
+DB_USERNAME="$LOCAL_DB_USERNAME" \
+DB_PASSWORD="$LOCAL_DB_PASSWORD" \
+    php "$SKILL_DIR/scripts/write-env-db.php" "$PROJECT_PATH"
+# Keep the skill-level developer configuration out of the project's committed
+# files even if it is ever copied into the project folder (SKILL.md, Default
+# Database Configuration): the file lives in the skill workspace and is never
+# copied by the scaffold; this line is the defensive net.
+printf '\n# Local developer database configuration (never commit credentials)\nlocal.config.json\n' >> "$PROJECT_PATH/.gitignore"
 APP_URL_VALUE="$(grep -E '^APP_URL=' "$PROJECT_PATH/.env" | head -n 1 | cut -d= -f2-)"
 printf '\nL5_SWAGGER_CONST_HOST="%s"\nL5_SWAGGER_GENERATE_ALWAYS=true\n' "$APP_URL_VALUE" >> "$PROJECT_PATH/.env"
 # Token lifetime defaults (config/oauth.php), visible and overridable per project.
@@ -377,7 +406,7 @@ echo "    artisan fails with 'Failed opening required vendor/autoload.php' while
 (cd "$PROJECT_PATH" && composer install --no-interaction --no-progress)
 
 echo "==> [5/9] Creating MySQL database if it does not exist"
-mysql -u root -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+"${MYSQL_CLIENT[@]}" -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
 echo "==> [6/9] Adding the uuid column to the default users migration"
 USERS_MIGRATION="$PROJECT_PATH/database/migrations/0001_01_01_000000_create_users_table.php"
